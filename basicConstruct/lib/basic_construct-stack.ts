@@ -10,50 +10,37 @@ export class BasicConstructStack extends cdk.Stack {
     super(scope, id, props);
 
     // The code that defines your stack goes here
-
-    const lambdaFunc = new lambda.DockerImageFunction(
-      this,
-      'CodepipelineEventLambda',
-      {
-        code: lambda.DockerImageCode.fromImageAsset(
-          path.join(__dirname, 'lambda-source','source'),
-          {
-            cmd: ['app.handler'],
-          }
-        ),
-       
-      }
-    );
-
+    
+ 
     // 監聽 CloudTrail 在 IAM 新建 user 時觸發
 
 
 
     // example resource
-    const queue = new sqs.Queue(this, 'BasicConstructQueue', {
-      visibilityTimeout: cdk.Duration.seconds(300)
-    });
+    // const queue = new sqs.Queue(this, 'BasicConstructQueue', {
+    //   visibilityTimeout: cdk.Duration.seconds(300)
+    // });
 
-    const cfnGroup = new resourcegroups.CfnGroup(this, 'MyCfnGroup', {
-      name: 'name20221126',
+    // const cfnGroup = new resourcegroups.CfnGroup(this, 'MyCfnGroup', {
+    //   name: 'name20221126',
     
-      // the properties below are optional
+    //   // the properties below are optional
       
-      description: 'description',
+    //   description: 'description',
    
       
-      tags: [{
-        key: '20221126',
-        value: 'value',
-      }],
-    });
+    //   tags: [{
+    //     key: '20221126',
+    //     value: 'value',
+    //   }],
+    // });
 
-    const tag = new cdk.Tag('key-20221126', 'value', /* all optional props */ {
-      applyToLaunchedInstances: true,
-      excludeResourceTypes: ['excludeResourceTypes'],
-      includeResourceTypes: ['includeResourceTypes'],
-      priority: 123,
-    });
+    // const tag = new cdk.Tag('key-20221126', 'value', /* all optional props */ {
+    //   applyToLaunchedInstances: true,
+    //   excludeResourceTypes: ['excludeResourceTypes'],
+    //   includeResourceTypes: ['includeResourceTypes'],
+    //   priority: 123,
+    // });
 
 
   }
