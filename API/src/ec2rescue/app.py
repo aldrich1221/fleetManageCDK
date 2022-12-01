@@ -94,12 +94,6 @@ def lambda_handler(event, context):
                 logging.info(ssm_client)
               
        
-                    
-                    
-                    
-       
-
-
                 if body['action']=='EC2RescueInitialize':
                     command=[
                     "Invoke-WebRequest -Uri \"https://s3.amazonaws.com/ec2rescue/windows/EC2Rescue_latest.zip?x-download-source=docs\" -OutFile \"./EC2Rescue_latest.zip\"",

@@ -10,7 +10,7 @@ export class BasicConstructStack extends cdk.Stack {
     super(scope, id, props);
 
     // The code that defines your stack goes here
-    
+
  
     // 監聽 CloudTrail 在 IAM 新建 user 時觸發
 
