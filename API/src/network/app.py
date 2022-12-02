@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timedelta,date
 from dateutil.relativedelta import relativedelta
 from boto3.dynamodb.conditions import Key, Attr
+from uuid import uuid4
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 AccessControlAllowOrigin="https://d1wzk0972nk23y.cloudfront.net"
@@ -13,6 +14,46 @@ CPUUtilization_threshold=11
 class CustomError(Exception):
   pass
 
+def list_s3_by_prefix(bucket, key_prefix, filter_func=None):
+    s3=boto3.client('s3')
+    next_token = ''
+    all_keys = []
+    while True:
+        if next_token:
+            res = s3.list_objects_v2(
+                Bucket=bucket,
+                ContinuationToken=next_token,
+                Prefix=key_prefix)
+            logger.info("============res=============")
+            logger.info(res)
+        else:
+            res = s3.list_objects_v2(
+                Bucket=bucket,
+                Prefix=key_prefix)
+            logger.info("============res=============")
+            logger.info(res)
+        if 'Contents' not in res:
+            break
+
+        if res['IsTruncated']:
+            next_token = res['NextContinuationToken']
+        else:
+            next_token = ''
+
+        if filter_func:
+            keys = ["s3://{}/{}".format(bucket, item['Key']) for item in res['Contents'] if filter_func(item['Key'])]
+        else:
+            keys = ["s3://{}/{}".format(bucket, item['Key']) for item in res['Contents']]
+
+        all_keys.extend(keys)
+
+        logger.info("============all_keys=============")
+        logger.info(all_keys)
+        if not next_token:
+            break
+   
+    print("find {} files in {}".format(len(all_keys), key_prefix))
+    return all_keys
 def process(event, context):
     try: 
         try:
@@ -46,7 +87,7 @@ def process(event, context):
                         vpcid,
                     ],
                     LogDestinationType='s3',
-                    LogDestination='arn:aws:s3:::vbs-tempfile-bucket/'+ec2id,
+                    LogDestination='arn:aws:s3:::vbs-tempfile-bucket-htc/'+ec2id,
                     ResourceType='VPC'
                     # LogFormat='${version} ${vpc-id} ${subnet-id} ${az-id} ${instance-id} ${srcaddr} ${dstaddr} ${srcport} ${dstport} ${protocol} ${tcp-flags} ${type} ${pkt-srcaddr} ${pkt-dstaddr} ${traffic-path}',
                 )
@@ -54,7 +95,7 @@ def process(event, context):
                 response2 = ec2.create_flow_logs(
                     TrafficType='ALL',
                     LogDestinationType='s3',
-                    LogDestination='arn:aws:s3:::vbs-tempfile-bucket/'+ec2id,
+                    LogDestination='arn:aws:s3:::vbs-tempfile-bucket-htc/'+ec2id,
                     ResourceIds=[
                         subnetid,
                     ],
@@ -69,7 +110,7 @@ def process(event, context):
                     ],
                         LogFormat='${version} ${vpc-id} ${subnet-id} ${az-id} ${instance-id} ${srcaddr} ${dstaddr} ${srcport} ${dstport} ${protocol} ${tcp-flags} ${type} ${pkt-srcaddr} ${pkt-dstaddr} ${traffic-path}',
                     LogDestinationType='s3',
-                    LogDestination='arn:aws:s3:::vbs-tempfile-bucket/'+ec2id,
+                    LogDestination='arn:aws:s3:::vbs-tempfile-bucket-htc/'+ec2id,
                     ResourceType='NetworkInterface'
                 )
                 flowlogs.append(response3)
@@ -83,15 +124,69 @@ def process(event, context):
                 data.append(newdata)
                 # data.append({'create_flow_logs':flowlogs})
             elif action=='get_flow_logs':
+                s3_source = boto3.resource('s3')
                 FlowLogIds=body['flowLogIds']
                 
                 response = ec2.describe_flow_logs(
                     
                     FlowLogIds=FlowLogIds,
-                    MaxResults=123,
-                    NextToken='string'
+                   
                 )
+                logger.info("============success response=============")
+                logger.info(response)
+               
                 s3path=response['FlowLogs'][0]['LogDestination']
+                # ResourceId=response['FlowLogs'][i]['ResourceId']
+                
+                all_keys=list_s3_by_prefix('vbs-tempfile-bucket-htc',ec2id)
+                allkeys=[]
+                for i in range(len(all_keys)):
+                    bucket, key = all_keys[0].split('/',2)[-1].split('/',1)
+                    allkeys.append(key)
+                obj = s3_source.Object(bucket, key)
+                logger.info("============obj=============")
+                logger.info(obj.get()['Body'].read())
+                # txt=obj.get()['Body'].read().decode('utf-8') 
+                # logger.info("============success response=============")
+                # logger.info(txt)
+                
+                
+                dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
+
+                
+                table = dynamodb_resource.Table('VBS_Enterprise_Info')
+                
+            
+                response = table.query(
+                KeyConditionExpression=Key('userid').eq('Enterprise_User_Service')
+                )
+                item = response['Items'][0]
+               
+                sts_client = boto3.client(
+                        'sts', aws_access_key_id=item['keypair_id'], aws_secret_access_key=item['keypair_secret'])
+                # sts_client = boto3.client(
+                #         'sts', aws_access_key_id="AKIA4T2RLXBEA3M2SN4H", aws_secret_access_key="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")
+                        
+                session_name=f'enterpriseUser_session-{uuid4()}'
+                response = sts_client.assume_role(
+                    RoleArn=item['iam_role_arn'], RoleSessionName=session_name)
+                    
+                logger.info("============success response=============")
+                logger.info(response)
+                temp_credentials = response['Credentials']
+                
+                credentialData={
+                "AccessKeyId": temp_credentials['AccessKeyId'],
+                 "SecretAccessKey": temp_credentials['SecretAccessKey'],
+                 'SessionToken':temp_credentials['SessionToken']
+                 
+                    
+                }
+                data.append({
+                    'allkeys':allkeys,
+                    'credentialData':credentialData
+
+                })
             
             elif action=='delete_flow_logs':
                 FlowLogIds=body['flowLogIds']

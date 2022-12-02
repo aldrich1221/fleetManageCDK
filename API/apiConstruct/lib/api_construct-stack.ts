@@ -37,7 +37,7 @@ export class ApiConstructStack extends Stack {
         }),
         timeout: Duration.seconds(900),
     });
- 
+    
     const API_vbs_test=new apigateway.LambdaRestApi(this, 'API_vbs_test', {
       handler: Function_vbs_test,
       restApiName:'API_vbs_test',
@@ -61,6 +61,7 @@ export class ApiConstructStack extends Stack {
       handler: Function_vbs_api_authorize,
       identitySources: [apigateway.IdentitySource.header('Authorization')]
     });
+    
     const API_vbs_test_v1 = API_vbs_test.root.addResource('v1');
     API_vbs_test_v1.addMethod('GET',
     new apigateway.LambdaIntegration(Function_vbs_test, {proxy: true}), {
@@ -149,7 +150,7 @@ export class ApiConstructStack extends Stack {
     Policy_vbs_create_iam_user.addActions("*");
     Function_vbs_create_iam_user.addToRolePolicy(Policy_vbs_create_iam_user);
 
-    const eventRule=new events.Rule(this, "twentyDaysRule", {
+    const eventRule=new events.Rule(this, "Rule", {
     
       schedule:events.Schedule.rate(cdk.Duration.days(20))
     });
@@ -193,54 +194,54 @@ export class ApiConstructStack extends Stack {
 
 
     //////////////# Network ###############
-    const Function_vbs_network_analysis = new lambda.DockerImageFunction(this, 'Function_vbs_network_analysis',{
-      functionName: 'Function_vbs_network_analysis',
-      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/network'), {
-      cmd: [ "app.lambda_handler" ],
+  //   const Function_vbs_network_analysis = new lambda.DockerImageFunction(this, 'Function_vbs_network_analysis',{
+  //     functionName: 'Function_vbs_network_analysis',
+  //     code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/network'), {
+  //     cmd: [ "app.lambda_handler" ],
     
      
-      }),
-      timeout: Duration.seconds(900),
-  });
+  //     }),
+  //     timeout: Duration.seconds(900),
+  // });
 
-    const Policy_vbs_network_analysis = new iam.PolicyStatement();
-    Policy_vbs_network_analysis.addResources("*");
-    Policy_vbs_network_analysis.addActions("*");
-    Function_vbs_network_analysis.addToRolePolicy(Policy_vbs_network_analysis);
-    const API_vbs_network_analysis=new apigateway.LambdaRestApi(this, 'API_vbs_network_analysis', {
-      handler: Function_vbs_network_analysis,
-      restApiName:'API_vbs_network_analysis',
-      proxy: false,
-      apiKeySourceType:ApiKeySourceType.HEADER,
-      defaultCorsPreflightOptions: { 
-        allowHeaders: [
-          'Content-Type',
-          'X-Amz-Date',
-          'Authorization',
-          'X-Api-Key',
-        ],
-        allowOrigins: apigateway.Cors.ALL_ORIGINS },
-      integrationOptions: {
-      allowTestInvoke: false,
-        timeout: Duration.seconds(29),
-      }
-    });
+  //   const Policy_vbs_network_analysis = new iam.PolicyStatement();
+  //   Policy_vbs_network_analysis.addResources("*");
+  //   Policy_vbs_network_analysis.addActions("*");
+  //   Function_vbs_network_analysis.addToRolePolicy(Policy_vbs_network_analysis);
+  //   const API_vbs_network_analysis=new apigateway.LambdaRestApi(this, 'API_vbs_network_analysis', {
+  //     handler: Function_vbs_network_analysis,
+  //     restApiName:'API_vbs_network_analysis',
+  //     proxy: false,
+  //     apiKeySourceType:ApiKeySourceType.HEADER,
+  //     defaultCorsPreflightOptions: { 
+  //       allowHeaders: [
+  //         'Content-Type',
+  //         'X-Amz-Date',
+  //         'Authorization',
+  //         'X-Api-Key',
+  //       ],
+  //       allowOrigins: apigateway.Cors.ALL_ORIGINS },
+  //     integrationOptions: {
+  //     allowTestInvoke: false,
+  //       timeout: Duration.seconds(29),
+  //     }
+  //   });
 
-    const API_vbs_network_analysis_v1 = API_vbs_network_analysis.root.addResource('v1');
-    const API_vbs_network_analysis_user = API_vbs_network_analysis_v1.addResource('user');
-    const API_vbs_network_analysis_userid = API_vbs_network_analysis_user.addResource('{userid}');
+  //   const API_vbs_network_analysis_v1 = API_vbs_network_analysis.root.addResource('v1');
+  //   const API_vbs_network_analysis_user = API_vbs_network_analysis_v1.addResource('user');
+  //   const API_vbs_network_analysis_userid = API_vbs_network_analysis_user.addResource('{userid}');
     
-    const API_vbs_network_analysis_ec2 = API_vbs_network_analysis_userid.addResource("ec2")
-    const API_vbs_network_analysis_ec2id = API_vbs_network_analysis_ec2.addResource('{ec2id}')
+  //   const API_vbs_network_analysis_ec2 = API_vbs_network_analysis_userid.addResource("ec2")
+  //   const API_vbs_network_analysis_ec2id = API_vbs_network_analysis_ec2.addResource('{ec2id}')
 
-    const Authorizer_vbs_network_analysis = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_network_analysis', {
-      handler: Function_vbs_api_authorize,
-      identitySources: [apigateway.IdentitySource.header('Authorization')]
-    });
-    API_vbs_network_analysis_ec2id.addMethod('POST',
-    new apigateway.LambdaIntegration(Function_vbs_network_analysis, {proxy: true}), {
-      authorizer: Authorizer_vbs_network_analysis
-    });
+  //   const Authorizer_vbs_network_analysis = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_network_analysis', {
+  //     handler: Function_vbs_api_authorize,
+  //     identitySources: [apigateway.IdentitySource.header('Authorization')]
+  //   });
+  //   API_vbs_network_analysis_ec2id.addMethod('POST',
+  //   new apigateway.LambdaIntegration(Function_vbs_network_analysis, {proxy: true}), {
+  //     authorizer: Authorizer_vbs_network_analysis
+  //   });
 
   
   
