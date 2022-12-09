@@ -98,7 +98,8 @@ def lambda_handler(event, context):
     # For this demo, the token is verified if it is equal to 'allow' and other values are invalid 
     
 
-    if(event['headers']['authorizationToken'] == 'allow'):
+    # if(event['headers']['authorizationToken'] == 'allow'):
+    if(event['headers']['Authorization'] == 'allow'):
         policy.allowAllMethods()
     else:
         policy.denyAllMethods()

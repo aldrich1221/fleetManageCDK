@@ -61,7 +61,7 @@ def process(event, context):
             body=event['body']
             body= json.loads(body)
             pathParameters=event['pathParameters']
-            action=pathParameters['action']
+            
             userid=pathParameters['userid']
         except:
             raise CustomError("Please check the parameters.")
@@ -70,6 +70,7 @@ def process(event, context):
         ec2=boto3.client('ec2')
         for iec2 in range(len(body["ec2ids"])):
             ec2id=body["ec2ids"][iec2]
+            action=body['action']
             region=body["regions"][iec2]
             if action=='create_flow_logs':
                 response_ec2_describe_instances=ec2.describe_instances(InstanceIds=[
@@ -156,7 +157,7 @@ def process(event, context):
                 
                 table = dynamodb_resource.Table('VBS_Enterprise_Info')
                 
-            
+                
                 response = table.query(
                 KeyConditionExpression=Key('userid').eq('Enterprise_User_Service')
                 )

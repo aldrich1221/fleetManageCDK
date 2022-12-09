@@ -1,4 +1,3 @@
-# import re
 import boto3
 import json
 import boto3
@@ -18,7 +17,9 @@ import time
 # from dateutil import parser
 
 
-AccessControlAllowOrigin="https://d1wzk0972nk23y.cloudfront.net/"
+
+AccessControlAllowOrigin="https://d1wzk0972nk23y.cloudfront.net"
+# AccessControlAllowOrigin=["http://vbs-user-website-bucket-htc.s3-website-us-east-1.amazonaws.com","https://d1wzk0972nk23y.cloudfront.net"]
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 class CustomError(Exception):
@@ -30,11 +31,17 @@ def process(event, context):
             body=event['body']
             if body!=None:
                 body= json.loads(body)
+        
+        # source_ip=event['requestContext']['identity']['sourceIp']
+        
+        ##Rest
         pathParameters=event['pathParameters']
         userid=pathParameters['userid']
-        source_ip=event['requestContext']['identity']['sourceIp']
-        # source_ip='61.218.44.76'
         action=pathParameters['actionid']
+        source_ip=body['source_ip']
+        # query=event['queryStringParameters']
+        # userid=query['userid']
+        # action=query['actionid']
         if action=='init':
             try:
                 
@@ -52,8 +59,8 @@ def process(event, context):
                 
                 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 
-               
-                choose_region=["ap-northeast-1",'ap-east-1','sa-east-1']
+                
+                choose_region=["ap-northeast-1",'sa-east-1']
                 table = dynamodb.Table('VBS_Region_Info')
                 response = table.scan(
                                 FilterExpression=Attr("region").is_in(choose_region)
@@ -200,11 +207,14 @@ def process(event, context):
                     # })
                     ResponseInstanceData.append(eachitem)
                 
+                
                 json_data = [{'user_id': userid, 
                                 'userIP':str(source_ip),
                                 'userCity':{'S':str(source_city)},
                                 "instanceData":ResponseInstanceData
                                 }]
+                logger.info("============json_data=============")
+                logger.info(json_data)
                 return json_data
             
             except:
@@ -212,31 +222,38 @@ def process(event, context):
 
         elif action=='check':
             InstanceData=body["instanceData"]
-            instanceidlist=[]
+            instance_statuslist=[]
             for item in InstanceData:
-                instanceidlist.append(item.instanceid)
-            instance_status = ec2.describe_instance_status(
-                    InstanceIds=instanceidlist
-                    )
+                logger.info("============item=============")
+                logger.info(item)
+                # instanceidlist.append(item["instanceid"])
+                ec2 = boto3.client('ec2', region_name=item['region'])
+                instance_status = ec2.describe_instance_status(
+                        InstanceIds=[item["instanceid"]]
+                        )
+                instance_statuslist.append(instance_status)
             json_data = [{'user_id': userid, 
-                                'userIP':str(source_ip),
-                                'userCity':{'S':str(source_city)},
-                                "instanceData":instance_status
+                                'userIP':item['userIP'],
+                              
+                                "instanceData":instance_statuslist
                 }]
             return json_data
         elif action=='delete': 
             InstanceData=body["instanceData"]
-            instanceidlist=[]
+            instance_statuslist=[]
             for item in InstanceData:
-                instanceidlist.append(item.instanceid)
-            terminate_instance_response = ec2.terminate_instances(
-                    InstanceIds=instanceidlist
-                    )
-            json_data = [{'user_id': userid, 
-                                'userIP':str(source_ip),
-                                'userCity':{'S':str(source_city)},
-                                "instanceData":terminate_instance_response
-                }]
+                logger.info("============item=============")
+                logger.info(item)
+                # instanceidlist.append(item["instanceid"])
+                ec2 = boto3.client('ec2', region_name=item['region'])
+                instance_status = ec2.terminate_instances(
+                        InstanceIds=[item["instanceid"]]
+                        )
+                instance_statuslist.append(instance_status)
+                json_data = [{'user_id': userid, 
+                                'userIP':item['userIP'],
+                                "instanceData":instance_statuslist}]
+
             return json_data
 
             logger.info()
@@ -253,13 +270,16 @@ def lambda_handler(event, context):
         if ('body' in event.keys()) & ('pathParameters' in event.keys()):
 
                 data=process(event, context)
+                logger.info("============data=============")
+                logger.info(data)
                 json_data = [{
                                 "status":"success",
-                                "data": json.dumps(data)
-                                
+                                "data":data
+                            
                               }]
                                 
-                
+                logger.info("============success response=============")
+                logger.info( json_data)
                 return {
                 'headers':{
                     "Access-Control-Allow-Headers" : "Content-Type",
@@ -302,4 +322,3 @@ def lambda_handler(event, context):
                 },
                 
             }
-    
