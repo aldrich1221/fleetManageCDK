@@ -80,6 +80,10 @@ def lambda_handler(event, context):
     # return authResponse
     logger.info("============================")
     logger.info(event)
+    logger.info(event.keys())
+    logger.info(event['headers'])
+    
+    
     # print("Client token: " + event['authorizationToken'])
     # print("Method ARN: " + event['methodArn'])
 
@@ -98,7 +102,8 @@ def lambda_handler(event, context):
     # For this demo, the token is verified if it is equal to 'allow' and other values are invalid 
     
 
-    if(event['headers']['authorizationToken'] == 'allow'):
+    if(event['headers']['authorizationtoken'] == 'allow'):
+    # if(event['authorizationToken'] == 'allow'):
         policy.allowAllMethods()
     else:
         policy.denyAllMethods()

@@ -108,7 +108,7 @@ def process(event, context):
                     ResourceIds=[
                         networkinterfacesid,
                     ],
-                        LogFormat='${version} ${vpc-id} ${subnet-id} ${az-id} ${instance-id} ${srcaddr} ${dstaddr} ${srcport} ${dstport} ${protocol} ${tcp-flags} ${type} ${pkt-srcaddr} ${pkt-dstaddr} ${traffic-path}',
+                        # LogFormat='${version} ${vpc-id} ${subnet-id} ${az-id} ${instance-id} ${srcaddr} ${dstaddr} ${srcport} ${dstport} ${protocol} ${tcp-flags} ${type} ${pkt-srcaddr} ${pkt-dstaddr} ${traffic-path}',
                     LogDestinationType='s3',
                     LogDestination='arn:aws:s3:::vbs-tempfile-bucket-htc/'+ec2id,
                     ResourceType='NetworkInterface'
