@@ -49,7 +49,7 @@ export class ApiConstructStack extends Stack {
           'X-Amz-Date',
           'Authorization',
           'X-Api-Key',
-          'authorizationtoken',
+          'authorizationToken',
         ],
         allowOrigins: apigateway.Cors.ALL_ORIGINS },
       integrationOptions: {
@@ -68,8 +68,17 @@ export class ApiConstructStack extends Stack {
     new apigateway.LambdaIntegration(Function_vbs_test, {proxy: true}), {
       authorizer: Authorizer_vbs_test
     });
+    
+    API_vbs_test_v1.addMethod('POST',
+    new apigateway.LambdaIntegration(Function_vbs_test, {proxy: true}), {
+      authorizer: Authorizer_vbs_test
+    });
+    API_vbs_test_v1.addMethod('PUT',
+    new apigateway.LambdaIntegration(Function_vbs_test, {proxy: true}), {
+      authorizer: Authorizer_vbs_test
+    });
 
-
+    
     //#3 API issue handle //////////////////////////////
     const Function_vbs_issue_handle = new lambda.DockerImageFunction(this, 'Function_vbs_issue_handle',{
       functionName: 'Function_vbs_issue_handle',
@@ -96,7 +105,7 @@ export class ApiConstructStack extends Stack {
           'X-Amz-Date',
           'Authorization',
           'X-Api-Key',
-          'authorizationtoken',
+          'authorizationToken',
         ],
         allowOrigins: apigateway.Cors.ALL_ORIGINS },
       integrationOptions: {
@@ -221,7 +230,7 @@ export class ApiConstructStack extends Stack {
           'X-Amz-Date',
           'Authorization',
           'X-Api-Key',
-          'authorizationtoken',
+          'authorizationToken',
         ],
         allowOrigins: apigateway.Cors.ALL_ORIGINS },
       integrationOptions: {
@@ -274,7 +283,7 @@ export class ApiConstructStack extends Stack {
           'X-Amz-Date',
           'Authorization',
           'X-Api-Key',
-          'authorizationtoken',
+          'authorizationToken',
         ],
         allowOrigins: apigateway.Cors.ALL_ORIGINS },
       integrationOptions: {
@@ -293,13 +302,17 @@ export class ApiConstructStack extends Stack {
     
     const Authorizer_vbs_latency_test = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_latency_test', {
       handler: Function_vbs_api_authorize,
-      identitySources: [apigateway.IdentitySource.header('Authorization')]
+      identitySources: [apigateway.IdentitySource.header('authorizationToken')]
     });
     API_vbs_latency_test_actionid.addMethod('POST',
     new apigateway.LambdaIntegration(Function_vbs_latency_test, {proxy: true}), {
       authorizer: Authorizer_vbs_latency_test
     });
 
+    API_vbs_latency_test_actionid.addMethod('PUT',
+    new apigateway.LambdaIntegration(Function_vbs_latency_test, {proxy: true}), {
+      authorizer: Authorizer_vbs_latency_test
+    });
     
     API_vbs_latency_test_actionid.addMethod('GET',
     new apigateway.LambdaIntegration(Function_vbs_latency_test, {proxy: true}), {

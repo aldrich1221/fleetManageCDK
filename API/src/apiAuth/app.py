@@ -104,6 +104,8 @@ def lambda_handler(event, context):
 
     if(event['headers']['authorizationtoken'] == 'allow'):
     # if(event['authorizationToken'] == 'allow'):
+    # if(event['headers']['authorizationToken'] == 'allow'):
+    if(event['headers']['Authorization'] == 'allow'):
         policy.allowAllMethods()
     else:
         policy.denyAllMethods()
