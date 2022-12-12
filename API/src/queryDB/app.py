@@ -4,6 +4,7 @@ import json
 import boto3
 import logging
 import boto3
+from boto3.dynamodb.conditions import Key, Attr
 AccessControlAllowOrigin="https://d1wzk0972nk23y.cloudfront.net"
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

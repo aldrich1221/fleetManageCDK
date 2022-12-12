@@ -23,14 +23,23 @@ export class WebAuthStack extends Stack {
 
     
 
-    const Function_vbs_web_auth_login = new lambda.DockerImageFunction(this, 'Function_vbs_web_auth_login',{
-      functionName: 'Function_vbs_web_auth_login',
-      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../src/sampleAuthLogin'), {
-      cmd: [ "index.handler" ], 
-      }),
-      timeout: Duration.seconds(900),
-  });
+  //   const Function_vbs_web_auth_login = new lambda.DockerImageFunction(this, 'Function_vbs_web_auth_login',{
+  //     functionName: 'Function_vbs_web_auth_login',
+  //     code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../src/sampleAuthLogin'), {
+  //     cmd: [ "index.handler" ], 
+  //     }),
+  //     timeout: Duration.seconds(900),
+  // });
  
+  const Function_vbs_web_auth_login = new lambda.DockerImageFunction(this, 'Function_vbs_web_auth_login',{
+    functionName: 'Function_vbs_web_auth_login',
+    code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../src/webAuth'), {
+    cmd: [ "app.lambda_handler" ],
+  
+   
+    }),
+    timeout: Duration.seconds(900),
+});
   const Policy_vbs_web_auth_login = new iam.PolicyStatement({
     resources: ['*'],
     actions: ['sts:AssumeRole'],
