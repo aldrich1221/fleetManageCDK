@@ -20,6 +20,7 @@ def process(event, context):
             body= json.loads(body)
             pathParameters=event['pathParameters']
             
+
     except:
         raise CustomError("Please check the parameters.")
 
@@ -46,9 +47,9 @@ def process(event, context):
       ec2info=instance_data['Items'][0]
       SecurityGroupId=ec2info['securitygroupID']
       if userAMI=='withsteam':
-        AMI=ec2info['AMI']
+        AMI=ec2info['AMI_withsteam']
       else:
-        AMI=ec2info['AMI']
+        AMI=ec2info['AMI_withoutsteam']
       KEY_NAME=ec2info['keypairName']
       REGION=ec2info['region']
       ARN='arn:aws:iam::867217160264:instance-profile/VBSEC2InstanceProfile'

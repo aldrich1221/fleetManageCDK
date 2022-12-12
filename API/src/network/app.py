@@ -66,12 +66,13 @@ def process(event, context):
         except:
             raise CustomError("Please check the parameters.")
         
-        data=[]    
+        alldata=[]    
         ec2=boto3.client('ec2')
         for iec2 in range(len(body["ec2ids"])):
             ec2id=body["ec2ids"][iec2]
             action=body['action']
             region=body["regions"][iec2]
+            data=[]    
             if action=='create_flow_logs':
                 response_ec2_describe_instances=ec2.describe_instances(InstanceIds=[
                                     ec2id,
@@ -207,14 +208,107 @@ def process(event, context):
                 "ec2id":ec2id,
                 "data":response
             })
+
+            elif action=='network_insights_path':   
+                    
+                   
+                desc=ec2.describe_instances(
+                    InstanceIds=[
+                        ec2id,
+                    ],
+                )
+                vpcid=desc['Reservations'][0]['Instances'][0]['VpcId']
                 
-            
+                responseIGW = ec2.describe_internet_gateways(
+                    Filters=[
+                        {
+                            'Name': 'attachment.vpc-id',
+                            'Values': [
+                                vpcid,
+                            ],
+                        },
+                    ],
+                )
+                
+                igwid=responseIGW['InternetGateways'][0]['InternetGatewayId']
+                
+                response_insight_path=ec2.create_network_insights_path(
+                    Source=igwid,
+                    Destination=ec2id,
+                    Protocol='tcp',
+                    
+                    )
+                
+                logger.info("============response_insight_path=============")
+                logger.info(response_insight_path)  
+                NetworkInsightsPathId=response_insight_path['NetworkInsightsPath']['NetworkInsightsPathId']
+                
+                result=ec2.start_network_insights_analysis(NetworkInsightsPathId=NetworkInsightsPathId)
+                NetworkInsightsAnalysisId=result['NetworkInsightsAnalysis']['NetworkInsightsAnalysisId']
+                
+                
+                result2=ec2.describe_network_insights_paths( NetworkInsightsPathIds=[NetworkInsightsPathId])
+                paginator = ec2.get_paginator('describe_network_insights_analyses')
+                
+                pathAnlysisResult=None
+                Flag=True
+                while(Flag):
+                    response_iterator = paginator.paginate(
+                            NetworkInsightsAnalysisIds=[
+                                NetworkInsightsAnalysisId,
+                            ],
+                            NetworkInsightsPathId=NetworkInsightsPathId,
+                        
+                        )
+                    logger.info("============response_iterator=============")
+                    logger.info(response_iterator)  
+                    for page in response_iterator:
+                        logger.info(page)  
+                        
+                        if page['NetworkInsightsAnalyses'][0]['Status']!='running':
+                            Flag=False
+                            page['NetworkInsightsAnalyses'][0]['ForwardPathComponents']
+                            page['NetworkInsightsAnalyses'][0]['ReturnPathComponents']
+                            
+                            
+                            pathAnlysisResult={
+                                'ForwardPathComponents':page['NetworkInsightsAnalyses'][0]['ForwardPathComponents'],
+                                'ReturnPathComponents':page['NetworkInsightsAnalyses'][0]['ReturnPathComponents'],
+                                
+                            }
+                
+                logger.info("============response_insight_path=============")
+                # logger.info(result)
+                logger.info(response_iterator )
+                
+                newdata={
+                        "label":"network_insights_path",
+                        "datapoints":[pathAnlysisResult]
+                    }
+                data.append(newdata)
+                
+                logger.info("============delete_network_insights_analysis=============")
+                # logger.info(result)
+                logger.info(NetworkInsightsAnalysisId )
+                # data.append({'network_insights_path':pathAnlysisResult})
+                response = ec2.delete_network_insights_analysis(
+                    
+                    NetworkInsightsAnalysisId=NetworkInsightsAnalysisId
+                )
+                ec2.delete_network_insights_path(NetworkInsightsPathId=NetworkInsightsPathId)
+                        
+
+
             logger.info("============success response=============")
                     # logger.info(result)
             logger.info(data)
-                        
+            alldata.append({
+                    "status":'success',
+                    "ec2id":ec2id,
+                    "data":data
+                })          
                  
-        return data            
+        return alldata            
     except Exception as e:
         raise
    

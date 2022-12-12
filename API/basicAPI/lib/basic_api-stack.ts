@@ -138,6 +138,115 @@ export class BasicApiStack extends Stack {
 
 
 
+    ////////////////////////Query DB//////////////////////////
+    const Function_vbs_query_db = new lambda.DockerImageFunction(this, 'Function_vbs_query_db',{
+      functionName: 'Function_vbs_query_db',
+      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/queryDB'), {
+      cmd: [ "app.lambda_handler" ],
+    
+     
+      }),
+      timeout: Duration.seconds(900),
+  });
+
+    const Policy_vbs_query_db = new iam.PolicyStatement();
+    Policy_vbs_query_db.addResources("*");
+    Policy_vbs_query_db.addActions("*");
+    Function_vbs_query_db.addToRolePolicy(Policy_vbs_query_db);
+    const API_vbs_query_db=new apigateway.LambdaRestApi(this, 'API_vbs_query_db', {
+      handler: Function_vbs_query_db,
+      restApiName:'API_vbs_query_db',
+      proxy: false,
+      apiKeySourceType:ApiKeySourceType.HEADER,
+      defaultCorsPreflightOptions: { 
+        allowHeaders: [
+          'Content-Type',
+          'X-Amz-Date',
+          'authorization',
+          'Authorization',
+          'X-Api-Key',
+          'authorizationtoken',
+          'authorizationToken',
+        ],
+        allowOrigins: apigateway.Cors.ALL_ORIGINS },
+      integrationOptions: {
+      allowTestInvoke: false,
+        timeout: Duration.seconds(29),
+      }
+    });
+
+    const API_vbs_query_db_v1 = API_vbs_query_db.root.addResource('v1');
+    const API_vbs_query_db_user = API_vbs_query_db_v1.addResource('user');
+    const API_vbs_query_db_userid = API_vbs_query_db_user.addResource('{userid}');
+    const API_vbs_query_db_table = API_vbs_query_db_userid.addResource('table');
+    const API_vbs_query_db_tablename = API_vbs_query_db_table.addResource('{tablename}');
+    const API_vbs_query_db_action = API_vbs_query_db_tablename.addResource('action');
+    const API_vbs_query_db_actionid = API_vbs_query_db_action.addResource('{actionid}');
+    
+ 
+
+    const Authorizer_vbs_query_db = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_query_db', {
+      handler: Function_vbs_api_authorize,
+      identitySources: [apigateway.IdentitySource.header('authorizationtoken')]
+    });
+    API_vbs_query_db_actionid.addMethod('POST',
+    new apigateway.LambdaIntegration(Function_vbs_query_db, {proxy: true}), {
+      authorizer: Authorizer_vbs_query_db
+    });
+
+    /////////////////////////////////cost explorer
+    const Function_vbs_cost = new lambda.DockerImageFunction(this, 'Function_vbs_cost',{
+      functionName: 'Function_vbs_cost',
+      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/costExplorer'), {
+      cmd: [ "app.lambda_handler" ],
+    
+     
+      }),
+      timeout: Duration.seconds(900),
+  });
+
+    const Policy_vbs_cost = new iam.PolicyStatement();
+    Policy_vbs_cost.addResources("*");
+    Policy_vbs_cost.addActions("*");
+    Function_vbs_cost.addToRolePolicy(Policy_vbs_cost);
+    const API_vbs_cost=new apigateway.LambdaRestApi(this, 'API_vbs_cost', {
+      handler: Function_vbs_cost,
+      restApiName:'API_vbs_cost',
+      proxy: false,
+      apiKeySourceType:ApiKeySourceType.HEADER,
+      defaultCorsPreflightOptions: { 
+        allowHeaders: [
+          'Content-Type',
+          'X-Amz-Date',
+          'authorization',
+          'Authorization',
+          'X-Api-Key',
+          'authorizationtoken',
+          'authorizationToken',
+        ],
+        allowOrigins: apigateway.Cors.ALL_ORIGINS },
+      integrationOptions: {
+      allowTestInvoke: false,
+        timeout: Duration.seconds(29),
+      }
+    });
+
+    const API_vbs_cost_v1 = API_vbs_cost.root.addResource('v1');
+    const API_vbs_cost_user = API_vbs_cost_v1.addResource('user');
+    const API_vbs_cost_userid = API_vbs_cost_user.addResource('{userid}');
+    const API_vbs_cost_action = API_vbs_cost_userid.addResource('action');
+    const API_vbs_cost_actionid = API_vbs_cost_action.addResource('{actionid}');
+    
+ 
+
+    const Authorizer_vbs_cost = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_cost', {
+      handler: Function_vbs_api_authorize,
+      identitySources: [apigateway.IdentitySource.header('authorizationtoken')]
+    });
+    API_vbs_cost_actionid.addMethod('POST',
+    new apigateway.LambdaIntegration(Function_vbs_cost, {proxy: true}), {
+      authorizer: Authorizer_vbs_cost
+    });
 
 
   }

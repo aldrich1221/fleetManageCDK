@@ -32,7 +32,7 @@ def process(event, context):
             )
             item = response['Items']
     
-        elif action='scanByUser':
+        elif action=='scanByUser':
             try:
                 userid=body["userid"]
                 response = table.scan(
@@ -76,7 +76,7 @@ def process(event, context):
     elif tableName=='VBS_Letency_Test':
         dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
         table = dynamodb_resource.Table('VBS_Letency_Test')
-        if action="scanByUser":
+        if action=="scanByUser":
             try:
                 userid=body["userid"]
                 response = table.scan(
@@ -97,7 +97,7 @@ def process(event, context):
             except:
                 raise
             
-        elif action="scanByCity":
+        elif action=="scanByCity":
             logger.info("============latency test by City=============")
             try:
                 city=body["city"]
@@ -116,7 +116,7 @@ def process(event, context):
             except:
                 raise
                
-        elif action="scanByDeveloper":
+        elif action=="scanByDeveloper":
             try:
                 response = table.scan(
                     FilterExpression=Attr('user_id').eq("developer-123456789")
@@ -130,7 +130,7 @@ def process(event, context):
                 return json_data
             except:
                 raise
-        elif action="scanAll":
+        elif action=="scanAll":
             try:
                 response = table.scan(
                 )
