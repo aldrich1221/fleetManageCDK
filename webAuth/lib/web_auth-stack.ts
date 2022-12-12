@@ -26,9 +26,7 @@ export class WebAuthStack extends Stack {
     const Function_vbs_web_auth_login = new lambda.DockerImageFunction(this, 'Function_vbs_web_auth_login',{
       functionName: 'Function_vbs_web_auth_login',
       code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../src/sampleAuthLogin'), {
-      cmd: [ "index.handler" ],
-    
-     
+      cmd: [ "index.handler" ], 
       }),
       timeout: Duration.seconds(900),
   });
@@ -37,8 +35,6 @@ export class WebAuthStack extends Stack {
     resources: ['*'],
     actions: ['sts:AssumeRole'],
     effect: iam.Effect.ALLOW
-    
-  
   });
     // Policy_vbs_web_auth_login.addServicePrincipal('ec2.amazonaws.com');
     
@@ -48,5 +44,33 @@ export class WebAuthStack extends Stack {
 
 
     Function_vbs_web_auth_login.addToRolePolicy(Policy_vbs_web_auth_login);
+
+    const API_vbs_web_auth_login=new apigateway.LambdaRestApi(this, 'API_vbs_web_auth_login', {
+      handler: Function_vbs_web_auth_login,
+      restApiName:'API_vbs_web_auth_login',
+      proxy: false,
+      apiKeySourceType:ApiKeySourceType.HEADER,
+      defaultCorsPreflightOptions: { 
+        allowHeaders: [
+          'Content-Type',
+          'X-Amz-Date',
+          'Authorization',
+          'X-Api-Key',
+          'authorizationToken',
+        ],
+        allowOrigins: apigateway.Cors.ALL_ORIGINS },
+      integrationOptions: {
+      allowTestInvoke: false,
+        timeout: Duration.seconds(29),
+      }
+    });
+    
+    const API_vbs_web_auth_login_v1 = API_vbs_web_auth_login.root.addResource('v1');
+    API_vbs_web_auth_login_v1.addMethod('GET',
+    new apigateway.LambdaIntegration(Function_vbs_web_auth_login, {proxy: true}), {
+      
+    });
+    
+    
   }
 }
