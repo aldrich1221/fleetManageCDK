@@ -67,6 +67,8 @@ def process(event, context):
                           'VolumeSize': 150,
                           
                       },}]
+        deviceName=['xvda','xvdb','xvdc','xvdd','xvde','xvdf','xvdg','xvdh','xvdi','xvdj','xvdk','xvdl','xvdm','xvdn','xvdo','xvdp','xvdq','xvdr','xvds','xvdt','xvdu','xvdv','xvdw','xvdx','xvdy','xvdz']
+        blocki=0
         for appid in appids:
           contentData = table_content.scan(
                       FilterExpression=Attr("appid").eq(str(appid))
@@ -80,7 +82,7 @@ def process(event, context):
               AppID=item['appid']
               BlockDeviceMappings.append(
                   {
-                      'DeviceName': 'xvdh',
+                      'DeviceName': deviceName[blocki],
                       'Ebs': {
                           'DeleteOnTermination': True,
                           'SnapshotId': EBSID,
@@ -90,6 +92,7 @@ def process(event, context):
                    
                   }
                 )      
+              blocki=blocki+1
               
               
         tag_1 = {"Key": "UserID", "Value": USERID}
@@ -154,7 +157,7 @@ def process(event, context):
                   logger.info(printout)
                   if 'PublicIpAddress' in printout.keys():
                     state='done'
-                  
+
                     publicIP=printout['PublicIpAddress']
                     publicDnsName=printout['PublicDnsName']
                     launchtime=printout['LaunchTime'].strftime("%Y-%m-%d,%H:%M:%S")
@@ -291,7 +294,7 @@ def lambda_handler(event, context):
                 data=process(event, context)
                 json_data = [{
                                 "status":"success",
-                                "data": json.dumps(data)
+                                "data": data
                                 
                               }]
                                 

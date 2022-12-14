@@ -16,6 +16,7 @@ import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { DockerImageAsset } from 'aws-cdk-lib/aws-ecr-assets';
+import * as s3 from 'aws-cdk-lib/aws-s3';
 
 export class WebAuthStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -79,6 +80,13 @@ export class WebAuthStack extends Stack {
     new apigateway.LambdaIntegration(Function_vbs_web_auth_login, {proxy: true}), {
       
     });
+
+    // const test = new s3.Bucket(this, 'vbsuserwebsitebuckethtcpublic', {
+    //   bucketName: 'vbs-htc-public-bucket',
+    //   websiteIndexDocument: 'index.html', // 1
+    //   blockPublicAccess: new s3.BlockPublicAccess({ restrictPublicBuckets: false }) // 2
+    // });
+
     
     
   }

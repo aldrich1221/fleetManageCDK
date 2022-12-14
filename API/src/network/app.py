@@ -320,7 +320,7 @@ def lambda_handler(event, context):
                 data=process(event, context)
                 json_data = [{
                                 "status":"success",
-                                "data": json.dumps(data)
+                                "data": data
                                 
                               }]
                                 
