@@ -45,6 +45,80 @@ def send_cpuUtilization_notification_email(useremail,userid,instanceid):
         },
         Source="aldrich_chen@htc.com")
 
+
+def send_deleteInstance_notification_email_firstTime(useremail,userid,instanceid):
+    ses_client = boto3.client("ses", region_name="us-east-1")
+    CHARSET = "UTF-8"
+    HTML_EMAIL_CONTENT = """
+        <html>
+            <head></head>
+            <h1 style='text-align:center'>Low CPU Utilization Notification</h1>
+            <p>Dear {userid}</p>
+            <p>After we analyze your activity on our Cloud Platform ,we realize that your registrated server have not been used for a while.
+            To reduce the cost,we will delete the instance [ {instanceid} ] tommorow. If it is neccessary that keep the regirestrated instance 
+            Please click the link as below.</p>
+
+            
+            </body>
+        </html>
+    """
+
+    response = ses_client.send_email(
+        Destination={
+            "ToAddresses": [
+                useremail,
+            ],
+        },
+        Message={
+            "Body": {
+                "Html": {
+                    "Charset": CHARSET,
+                    "Data": HTML_EMAIL_CONTENT,
+                }
+            },
+            "Subject": {
+                "Charset": CHARSET,
+                "Data": "VBS Cloud Notification",
+            },
+        },
+        Source="aldrich_chen@htc.com")
+
+def send_deleteInstance_notification_email_secondTime(useremail,userid,instanceid):
+    ses_client = boto3.client("ses", region_name="us-east-1")
+    CHARSET = "UTF-8"
+    HTML_EMAIL_CONTENT = """
+        <html>
+            <head></head>
+            <h1 style='text-align:center'>Low CPU Utilization Notification</h1>
+            <p>Dear {userid}</p>
+            <p>After we analyze your activity on our Cloud Platform ,we realize that your registrated server have not been used for a while.
+            To reduce the cost,we deleted the instance [ {instanceid} ]. You can login into our web to relaunch the instance. Thanks</p>
+
+            
+            </body>
+        </html>
+    """
+
+    response = ses_client.send_email(
+        Destination={
+            "ToAddresses": [
+                useremail,
+            ],
+        },
+        Message={
+            "Body": {
+                "Html": {
+                    "Charset": CHARSET,
+                    "Data": HTML_EMAIL_CONTENT,
+                }
+            },
+            "Subject": {
+                "Charset": CHARSET,
+                "Data": "VBS Cloud Notification",
+            },
+        },
+        Source="aldrich_chen@htc.com")
+
 def send_cost_notification_email(useremail,userid,totalcost,detaillink):
     ses_client = boto3.client("ses", region_name="us-east-1")
     CHARSET = "UTF-8"
@@ -98,6 +172,7 @@ def process(event, context):
                 ec2id=item['id']
                 userid=item['userid']
                 region=item['region']
+                stoppedTime=item['stoppedTime']
                 cloudwatch = boto3.client('cloudwatch',region_name=region)
                 currentTime=datetime.now()
                 response = cloudwatch.get_metric_statistics(
@@ -152,6 +227,21 @@ def process(event, context):
                             item = response['Items'][0]
                             useremail=item['email']
                             send_cpuUtilization_notification_email(useremail,userid,ec2id)
+                        
+                        elif instance_status['InstanceStatuses'][0]['InstanceState']['Name']=='stopped':
+                            input_str = stoppedTime
+
+                            dt_object = datetime.strptime(input_str, '%d/%m/%y %H:%M:%S')
+
+                            
+                            x = datetime.now()
+                            deltaTime=x-dt_object
+                            if deltaTime.days>3:
+                                send_deleteinstance_notification_email_firstTime(useremail,userid,ec2id)
+                            elif deltaTime.days>4:
+                                send_deleteInstance_notification_email_secondTime(useremail,userid,instanceid)
+
+
 
 
             ##############for cost notif
@@ -202,6 +292,7 @@ def process(event, context):
                                 "status":"Success",
                             }]
         
+      
 
 
 

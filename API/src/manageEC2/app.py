@@ -51,17 +51,30 @@ def process(event, context):
                   instance_id,
               ]
               )
+
+          # input_str = '21/01/24 11:04:19'
+
+          # dt_object = datetime.strptime(
+          # input_str, '%d/%m/%y %H:%M:%S')
+
+          # print("The type of the input date string now is: ",
+          # type(dt_object))
+          x = datetime.now()
+          format_string='%d/%m/%y %H:%M:%S'
+          datetimeString = x.strftime(format_string)
+
+
           table = dynamodb_resource.Table('VBS_Instances_Information')
           response = table.update_item(
                             Key={
                                 'id':instance_id,
-                               
                             },
-                            UpdateExpression="set publicIP = :r,publicDnsName= :p,launchtime= :q",
+                            UpdateExpression="set publicIP = :r,publicDnsName= :p,launchtime= :q,stoppedtime= :s",
                             ExpressionAttributeValues={
                                 ':r': "",
                                 ':p': "",
                                 ':q': "",
+                                ':s': datetimeString,
                                 
                             },
                             ReturnValues="UPDATED_NEW"

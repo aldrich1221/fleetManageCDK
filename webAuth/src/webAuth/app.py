@@ -22,12 +22,18 @@ def process(event, context):
             # body= json.loads(body)
             pathParameters=event['pathParameters']
             headers=event['headers']
+            query=event['queryStringParameters']
     except:
         raise CustomError("Please check the parameters.")
 
     #########code here
-    userid=headers['userid']
-    password=headers['password']
+    # userid=headers['userid']
+    # password=headers['password']
+    userid=query['userid']
+    password=query['password']
+
+    ##########
+
     
     dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
 
@@ -57,11 +63,12 @@ def process(event, context):
             try:
                 response_data={}
                 session_name=f'enterpriseUser_session-{uuid4()}'
+                apikey=item['apikey']
                 response = sts_client.assume_role(
                     RoleArn=item['iam_role_arn'], RoleSessionName=session_name)
                 temp_credentials = response['Credentials']
-                console.log("===========credential token------------")
-                console.log(temp_credentials)
+                logger.info("===========credential token------------")
+                logger.info(temp_credentials)
                 #############################################
                 
                 method = 'GET'
@@ -201,7 +208,10 @@ def process(event, context):
                 
                 #####################################
 
-                s3_client = boto3.client('s3')
+                s3_client = boto3.client('s3',region_name='us-east-1',
+                          aws_access_key_id=access_key,
+                          aws_secret_access_key=secret_key)
+
                 expiration=3600
                 response_presigned = s3_client.generate_presigned_url('get_object',
                                                             Params={'Bucket': 'vbs-user-website-bucket-htc',
@@ -225,7 +235,7 @@ def process(event, context):
 
                 
                 response_data["login"]=True
-                response_data["apikey"]=item['keypair_id']
+                response_data["apikey"]=apikey
 
 
 
