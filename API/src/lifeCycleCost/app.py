@@ -9,7 +9,7 @@ from boto3.dynamodb.conditions import Key, Attr
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 AccessControlAllowOrigin="https://d1wzk0972nk23y.cloudfront.net"
-CPUUtilization_threshold=11
+CPUUtilization_threshold={'g4dn.xlarge':20,'t3.medium':15}
 def send_cpuUtilization_notification_email(useremail,userid,instanceid):
     ses_client = boto3.client("ses", region_name="us-east-1")
     CHARSET = "UTF-8"
@@ -55,8 +55,7 @@ def send_deleteInstance_notification_email_firstTime(useremail,userid,instanceid
             <h1 style='text-align:center'>Low CPU Utilization Notification</h1>
             <p>Dear {userid}</p>
             <p>After we analyze your activity on our Cloud Platform ,we realize that your registrated server have not been used for a while.
-            To reduce the cost,we will delete the instance [ {instanceid} ] tommorow. If it is neccessary that keep the regirestrated instance 
-            Please click the link as below.</p>
+            To reduce the cost,we will delete the instance [ {instanceid} ] tommorow</p>
 
             
             </body>
@@ -157,8 +156,11 @@ def send_cost_notification_email(useremail,userid,totalcost,detaillink):
 
 def process(event, context):
     try: 
-        action=event['action']
-        if action=='checkAll':
+
+        # action=event['action']
+        
+        # if action=='checkAll':
+        if True:
             dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
             dynamodb = boto3.client('dynamodb')
             table = dynamodb_resource.Table('VBS_Instances_Information')
@@ -172,6 +174,7 @@ def process(event, context):
                 ec2id=item['id']
                 userid=item['userid']
                 region=item['region']
+                ec2type=item['instancetype']
                 stoppedTime=item['stoppedTime']
                 cloudwatch = boto3.client('cloudwatch',region_name=region)
                 currentTime=datetime.now()
@@ -212,32 +215,47 @@ def process(event, context):
                 logger.info(instance_status)
                 if instance_status!=None:
                     # stringlog=f'{str(response['Datapoints'][0]['Average'])} vs {str(CPUUtilization_threshold)}'
-                    logger.info(response['Datapoints'][0]['Average'])
+                    logger.info("============CPUUtilization_threshold=============")
                     
-                    if response['Datapoints'][0]['Average']<CPUUtilization_threshold:
-                        logger.info(instance_status['InstanceStatuses'][0]['InstanceState'])
+                    logger.info(response['Datapoints'][0]['Average'])
+                    CPUUtilization_threshold={'g4dn.xlarge':20,'t3.medium':15,'g4dn.2xlarge':20}
+                    if len(instance_status['InstanceStatuses'])>0:
                         if instance_status['InstanceStatuses'][0]['InstanceState']['Name']=='running':
-                            response_1 = ec2.stop_instances(
-                                InstanceIds=[ec2id]
-                                )
-                            table2 = dynamodb_resource.Table('VBS_Enterprise_Info')
-                            usertable_response = table2.query(
-                            KeyConditionExpression=Key('userid').eq(userid)
-                            )
-                            item = response['Items'][0]
-                            useremail=item['email']
-                            send_cpuUtilization_notification_email(useremail,userid,ec2id)
                         
-                        elif instance_status['InstanceStatuses'][0]['InstanceState']['Name']=='stopped':
+                            logger.info(instance_status['InstanceStatuses'][0]['InstanceState'])
+                            if response['Datapoints'][0]['Average']<CPUUtilization_threshold[ec2type]:
+                                response_1 = ec2.stop_instances(
+                                    InstanceIds=[ec2id]
+                                    )
+                                
+                                table2 = dynamodb_resource.Table('VBS_Enterprise_Info')
+                                usertable_response = table2.query(
+                                KeyConditionExpression=Key('userid').eq(userid)
+                                )
+                                item = response['Items'][0]
+                                useremail=item['email']
+                                send_cpuUtilization_notification_email(useremail,userid,ec2id)
+                            
+                    elif instance_status['InstanceStatuses'][0]['InstanceState']['Name']=='stopped':
                             input_str = stoppedTime
 
                             dt_object = datetime.strptime(input_str, '%d/%m/%y %H:%M:%S')
 
+                            logger.info("============Stopped=============")
                             
                             x = datetime.now()
+                             
+                            format_string='%d/%m/%y %H:%M:%S'
+                            datetimeString = x.strftime(format_string)
+                            logger.info(datetimeString)
+                            
                             deltaTime=x-dt_object
+
+                            logger.info("=======deltaTime-----")
+                            logger.info(deltaTime)
+                            deltaTime=3.5
                             if deltaTime.days>3:
-                                send_deleteinstance_notification_email_firstTime(useremail,userid,ec2id)
+                                send_deleteinstance_notification_email_firstTime("Aldrich_Chen@htc.com",userid,ec2id)
                             elif deltaTime.days>4:
                                 send_deleteInstance_notification_email_secondTime(useremail,userid,instanceid)
 

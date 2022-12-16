@@ -47,8 +47,10 @@ export class ApiConstructStack extends Stack {
         allowHeaders: [
           'Content-Type',
           'X-Amz-Date',
+          'authorization',
           'Authorization',
           'X-Api-Key',
+          'authorizationtoken',
           'authorizationToken',
         ],
         allowOrigins: apigateway.Cors.ALL_ORIGINS },
@@ -60,7 +62,7 @@ export class ApiConstructStack extends Stack {
     
     const Authorizer_vbs_test = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_test', {
       handler: Function_vbs_api_authorize,
-      identitySources: [apigateway.IdentitySource.header('Authorization')]
+      identitySources: [apigateway.IdentitySource.header('authorizationtoken')]
     });
     
     const API_vbs_test_v1 = API_vbs_test.root.addResource('v1');
@@ -103,8 +105,10 @@ export class ApiConstructStack extends Stack {
         allowHeaders: [
           'Content-Type',
           'X-Amz-Date',
+          'authorization',
           'Authorization',
           'X-Api-Key',
+          'authorizationtoken',
           'authorizationToken',
         ],
         allowOrigins: apigateway.Cors.ALL_ORIGINS },
@@ -123,7 +127,7 @@ export class ApiConstructStack extends Stack {
 
     const Authorizer_vbs_issue_handle = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_issue_handle', {
       handler: Function_vbs_api_authorize,
-      identitySources: [apigateway.IdentitySource.header('Authorization')]
+      identitySources: [apigateway.IdentitySource.header('authorizationtoken')]
     });
     API_vbs_issue_handle_ec2id.addMethod('POST',
     new apigateway.LambdaIntegration(Function_vbs_issue_handle, {proxy: true}), {
@@ -228,8 +232,10 @@ export class ApiConstructStack extends Stack {
         allowHeaders: [
           'Content-Type',
           'X-Amz-Date',
+          'authorization',
           'Authorization',
           'X-Api-Key',
+          'authorizationtoken',
           'authorizationToken',
         ],
         allowOrigins: apigateway.Cors.ALL_ORIGINS },
@@ -243,14 +249,14 @@ export class ApiConstructStack extends Stack {
     const API_vbs_network_analysis_user = API_vbs_network_analysis_v1.addResource('user');
     const API_vbs_network_analysis_userid = API_vbs_network_analysis_user.addResource('{userid}');
     
-    const API_vbs_network_analysis_ec2 = API_vbs_network_analysis_userid.addResource("ec2")
-    const API_vbs_network_analysis_ec2id = API_vbs_network_analysis_ec2.addResource('{ec2id}')
+    // const API_vbs_network_analysis_ec2 = API_vbs_network_analysis_userid.addResource("ec2")
+    // const API_vbs_network_analysis_ec2id = API_vbs_network_analysis_ec2.addResource('{ec2id}')
 
     const Authorizer_vbs_network_analysis = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_network_analysis', {
       handler: Function_vbs_api_authorize,
-      identitySources: [apigateway.IdentitySource.header('Authorization')]
+      identitySources: [apigateway.IdentitySource.header('authorizationtoken')]
     });
-    API_vbs_network_analysis_ec2id.addMethod('POST',
+    API_vbs_network_analysis_userid.addMethod('POST',
     new apigateway.LambdaIntegration(Function_vbs_network_analysis, {proxy: true}), {
       authorizer: Authorizer_vbs_network_analysis
     });
@@ -281,8 +287,10 @@ export class ApiConstructStack extends Stack {
         allowHeaders: [
           'Content-Type',
           'X-Amz-Date',
+          'authorization',
           'Authorization',
           'X-Api-Key',
+          'authorizationtoken',
           'authorizationToken',
         ],
         allowOrigins: apigateway.Cors.ALL_ORIGINS },
@@ -302,7 +310,7 @@ export class ApiConstructStack extends Stack {
     
     const Authorizer_vbs_latency_test = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_latency_test', {
       handler: Function_vbs_api_authorize,
-      identitySources: [apigateway.IdentitySource.header('authorizationToken')]
+      identitySources: [apigateway.IdentitySource.header('authorizationtoken')]
     });
     API_vbs_latency_test_actionid.addMethod('POST',
     new apigateway.LambdaIntegration(Function_vbs_latency_test, {proxy: true}), {
