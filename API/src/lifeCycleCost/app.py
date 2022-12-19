@@ -47,40 +47,43 @@ def send_cpuUtilization_notification_email(useremail,userid,instanceid):
 
 
 def send_deleteInstance_notification_email_firstTime(useremail,userid,instanceid):
-    ses_client = boto3.client("ses", region_name="us-east-1")
-    CHARSET = "UTF-8"
-    HTML_EMAIL_CONTENT = """
-        <html>
-            <head></head>
-            <h1 style='text-align:center'>Low CPU Utilization Notification</h1>
-            <p>Dear {userid}</p>
-            <p>After we analyze your activity on our Cloud Platform ,we realize that your registrated server have not been used for a while.
-            To reduce the cost,we will delete the instance [ {instanceid} ] tommorow</p>
+    try:
+        ses_client = boto3.client("ses", region_name="us-east-1")
+        CHARSET = "UTF-8"
+        HTML_EMAIL_CONTENT = """
+            <html>
+                <head></head>
+                <h1 style='text-align:center'>Low CPU Utilization Notification</h1>
+                <p>Dear {userid}</p>
+                <p>After we analyze your activity on our Cloud Platform ,we realize that your registrated server have not been used for a while.
+                To reduce the cost,we will delete the instance [ {instanceid} ] tommorow</p>
 
-            
-            </body>
-        </html>
-    """
+                
+                </body>
+            </html>
+        """
 
-    response = ses_client.send_email(
-        Destination={
-            "ToAddresses": [
-                useremail,
-            ],
-        },
-        Message={
-            "Body": {
-                "Html": {
+        response = ses_client.send_email(
+            Destination={
+                "ToAddresses": [
+                    useremail,
+                ],
+            },
+            Message={
+                "Body": {
+                    "Html": {
+                        "Charset": CHARSET,
+                        "Data": HTML_EMAIL_CONTENT,
+                    }
+                },
+                "Subject": {
                     "Charset": CHARSET,
-                    "Data": HTML_EMAIL_CONTENT,
-                }
+                    "Data": "VBS Cloud Notification",
+                },
             },
-            "Subject": {
-                "Charset": CHARSET,
-                "Data": "VBS Cloud Notification",
-            },
-        },
-        Source="aldrich_chen@htc.com")
+            Source="aldrich_chen@htc.com")
+    except:
+        raise
 
 def send_deleteInstance_notification_email_secondTime(useremail,userid,instanceid):
     ses_client = boto3.client("ses", region_name="us-east-1")
@@ -152,9 +155,11 @@ def send_cost_notification_email(useremail,userid,totalcost,detaillink):
                 "Data": "VBS Cloud Notification",
             },
         },
-        Source="aldrich_chen@htc.com")
+        Source="Aldrich_Chen@htc.com")
 
 def process(event, context):
+   
+
     try: 
 
         # action=event['action']
@@ -207,21 +212,29 @@ def process(event, context):
                                 ec2id
                             ],
                         )
+                    response_describe = ec2.describe_instances(
+
+                                InstanceIds=[
+                                    ec2id,
+                                ],
+                            
+                            )
                     
                 except:
                     response_2=dynamodb.delete_item(TableName='VBS_Instances_Information',Key={'id':{'S':ec2id}})
                     
-                
+                status=response_describe['Reservations'][0]['Instances'][0]['State']['Name']
                 logger.info(instance_status)
+                logger.info(status)
                 if instance_status!=None:
                     # stringlog=f'{str(response['Datapoints'][0]['Average'])} vs {str(CPUUtilization_threshold)}'
                     logger.info("============CPUUtilization_threshold=============")
                     
                     # logger.info(response['Datapoints'][0]['Average'])
                     CPUUtilization_threshold={'g4dn.xlarge':20,'t3.medium':15,'g4dn.2xlarge':20}
-                    if len(instance_status['InstanceStatuses'])>0:
-                        if instance_status['InstanceStatuses'][0]['InstanceState']['Name']=='running':
-                        
+                    # if len(instance_status['InstanceStatuses'])>0:
+                        # if instance_status['InstanceStatuses'][0]['InstanceState']['Name']=='running':
+                    if status=='running':
                             logger.info(instance_status['InstanceStatuses'][0]['InstanceState'])
                             if response['Datapoints'][0]['Average']<CPUUtilization_threshold[ec2type]:
                                 response_1 = ec2.stop_instances(
@@ -232,32 +245,56 @@ def process(event, context):
                                 usertable_response = table2.query(
                                 KeyConditionExpression=Key('userid').eq(userid)
                                 )
-                                item = response['Items'][0]
+                                item = usertable_response['Items'][0]
                                 useremail=item['email']
                                 send_cpuUtilization_notification_email(useremail,userid,ec2id)
                             
-                    elif instance_status['InstanceStatuses'][0]['InstanceState']['Name']=='stopped':
-                            input_str = stoppedTime
-
-                            dt_object = datetime.strptime(input_str, '%d/%m/%y %H:%M:%S')
-
-                            logger.info("============Stopped=============")
-                            
+                    # elif instance_status['InstanceStatuses'][0]['InstanceState']['Name']=='stopped':
+                    elif status=='stopped':
+                            response_1 = ec2.stop_instances(
+                                    InstanceIds=[ec2id]
+                                    )
+                                
+                            table2 = dynamodb_resource.Table('VBS_Enterprise_Info')
+                            usertable_response = table2.query(
+                            KeyConditionExpression=Key('userid').eq(userid)
+                            )
+                            item = usertable_response['Items'][0]
+                            useremail=item['email']
                             x = datetime.now()
                              
                             format_string='%d/%m/%y %H:%M:%S'
                             datetimeString = x.strftime(format_string)
+                            
+                            logger.info(datetimeString)
+                            
+                            input_str = stoppedTime
+
+                            
+                            
+                            dt_object = datetime.strptime(input_str, '%d/%m/%y %H:%M:%S')
+
+                            logger.info("============Stopped=============")
+                            
+                            
                             logger.info(datetimeString)
                             
                             deltaTime=x-dt_object
 
                             logger.info("=======deltaTime-----")
                             logger.info(deltaTime)
-                            deltaTime=3.5
+
+
+                            ######Eamil 要先認證
+                            # deltaTime.days=3.5
+                            # response = ses_client.verify_email_address(
+                            #     EmailAddress='aldrich_chen@htc.com'
+                            # )
+  
                             if deltaTime.days>3:
-                                send_deleteinstance_notification_email_firstTime("Aldrich_Chen@htc.com",userid,ec2id)
+                                send_deleteInstance_notification_email_firstTime(useremail,userid,ec2id)
                             elif deltaTime.days>4:
-                                send_deleteInstance_notification_email_secondTime(useremail,userid,instanceid)
+                                send_deleteInstance_notification_email_secondTime(useremail,userid,ec2id)
 
 
 

@@ -1,8 +1,8 @@
 {
-  "name": "api_construct",
+  "name": "lambda_test",
   "version": "0.1.0",
   "bin": {
-    "api_construct": "bin/api_construct.js"
+    "lambda_test": "bin/lambda_test.js"
   },
   "scripts": {
     "build": "tsc",
@@ -11,19 +11,17 @@
     "cdk": "cdk"
   },
   "devDependencies": {
-    "@seeebiii/ses-verify-identities": "^4.2.3",
+    "aws-cdk": "2.40.0",
     "@types/jest": "^27.5.2",
     "@types/node": "10.17.27",
     "@types/prettier": "2.6.0",
-    "aws-cdk": "2.40.0",
     "jest": "^27.5.1",
     "ts-jest": "^27.1.4",
     "ts-node": "^10.9.1",
-    "typescript": "^3.9.10"
+    "typescript": "~3.9.7"
   },
   "dependencies": {
     "aws-cdk-lib": "2.40.0",
-    "aws-cdk-ses-domain-identity": "^2.0.0",
     "constructs": "^10.0.0"
   }
 }

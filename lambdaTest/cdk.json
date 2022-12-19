@@ -1,5 +1,5 @@
 {
-  "app": "npx ts-node --prefer-ts-exts bin/web_auth.ts",
+  "app": "npx ts-node --prefer-ts-exts bin/lambda_test.ts",
   "watch": {
     "include": [
       "**"
@@ -15,11 +15,6 @@
       "node_modules",
       "test"
     ]
-  },
-  "config": {
-    "domainName": "tzuchuan.info",
-    "hostedZoneId": "Z0194534O3ZSGRAOFLW2"
-  
   },
   "context": {
     "@aws-cdk/aws-apigateway:usagePlanKeyOrderInsensitiveId": true,
