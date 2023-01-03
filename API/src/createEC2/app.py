@@ -109,14 +109,11 @@ def process(event, context):
         
         if spotFlag==False: 
           windata = '''
-            <script>  
-            curl "http://169.254.169.254/latest/meta-data/public-ipv4" >> ec2ip.txt
-            curl "http://169.254.169.254/latest/meta-data/instance-id" >> ec2id.txt
-            curl "http://169.254.169.254/latest/meta-data/placement/region" >> region.txt
-            set /p ec2ip=< ec2ip.txt
-            set /p ec2id=< ec2id.txt
-            set /p region=< region.txt
-            </script> 
+            <powershell>
+            # load dynamic golden_user_data.ps1
+            Copy-S3Object -BucketName vbs-ami-resources -Key installer/golden_user_data.ps1 -LocalFile C:\golden_user_data.ps1 -Region us-east-1
+            powershell -executionpolicy unrestricted -File 'C:\\golden_user_data.ps1'
+            </powershell>
             <persist>true</persist>
             '''
           instance = ec2.run_instances(
