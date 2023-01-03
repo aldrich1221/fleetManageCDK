@@ -21,7 +21,7 @@ import * as route53Target from 'aws-cdk-lib/aws-route53-targets';
 import * as route53 from 'aws-cdk-lib/aws-route53';
 import { DnsValidatedDomainIdentity } from "aws-cdk-ses-domain-identity";
 import * as actions from 'aws-cdk-lib/aws-ses-actions'
-import {VerifySesDomain,VerifySesEmailAddress} from '@seeebiii/ses-verify-identities';
+// import {VerifySesDomain,VerifySesEmailAddress} from '@seeebiii/ses-verify-identities';
 export class ApiConstructStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
@@ -192,34 +192,19 @@ export class ApiConstructStack extends Stack {
     //   privateZone: false,
     // });
 
-    const hostedZone= route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
-            hostedZoneId: 'Z0194534O3ZSGRAOFLW2',
-            zoneName: 'tzuchuan.info' // your zone name here
-          });
-    const identity = new DnsValidatedDomainIdentity(this, 'DomainIdentity', {
-      domainName: 'tzuchuan.info',
-      dkim: true,
-      region: 'us-east-1',
-      hostedZone,
-    });
-
-    // new VerifySesEmailAddress(this, 'SesEmailVerification', {
-    //   emailAddress: 'Aldrich_Chen@htc.com'
+    // const hostedZone= route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
+    //         hostedZoneId: 'Z0194534O3ZSGRAOFLW2',
+    //         zoneName: 'tzuchuan.info' // your zone name here
+    //       });
+    // const identity = new DnsValidatedDomainIdentity(this, 'DomainIdentity', {
+    //   domainName: 'tzuchuan.info',
+    //   dkim: true,
+    //   region: 'us-east-1',
+    //   hostedZone,
     // });
+
  
 
-    // new VerifySesDomain(this, 'SesDomainVerification', {
-    //   domainName: 'tzuchuan.info'
-    // });
-    // new VerifySesDomain(this, 'SesDomainVerification2', {
-    //   domainName: 'htc.com'
-    // });
-    // new VerifySesEmailAddress(this, 'SesEmailVerification', {
-    //   emailAddress: 'aldrich_chen@htc.com'
-    // });
-    // new VerifySesDomain(this, 'SesDomainVerification', {
-    //   domainName: 'example.org'
-    // });
     ///////////life Cycle
      
     const Function_vbs_lifecycle_manage = new lambda.DockerImageFunction(this, 'Function_vbs_lifecycle_manage',{

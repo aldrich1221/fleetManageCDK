@@ -13,7 +13,7 @@ CPUUtilization_threshold={'g4dn.xlarge':20,'t3.medium':15}
 def send_cpuUtilization_notification_email(useremail,userid,instanceid):
     ses_client = boto3.client("ses", region_name="us-east-1")
     CHARSET = "UTF-8"
-    HTML_EMAIL_CONTENT = """
+    HTML_EMAIL_CONTENT = f"""
         <html>
             <head></head>
             <h1 style='text-align:center'>Low CPU Utilization Notification</h1>
@@ -43,14 +43,14 @@ def send_cpuUtilization_notification_email(useremail,userid,instanceid):
                 "Data": "VBS Cloud Notification",
             },
         },
-        Source="aldrich_chen@htc.com")
+        Source="admin@tzuchuan.info")
 
 
 def send_deleteInstance_notification_email_firstTime(useremail,userid,instanceid):
     try:
         ses_client = boto3.client("ses", region_name="us-east-1")
         CHARSET = "UTF-8"
-        HTML_EMAIL_CONTENT = """
+        HTML_EMAIL_CONTENT = f"""
             <html>
                 <head></head>
                 <h1 style='text-align:center'>Low CPU Utilization Notification</h1>
@@ -81,14 +81,14 @@ def send_deleteInstance_notification_email_firstTime(useremail,userid,instanceid
                     "Data": "VBS Cloud Notification",
                 },
             },
-            Source="aldrich_chen@htc.com")
+            Source="admin@tzuchuan.info")
     except:
         raise
 
 def send_deleteInstance_notification_email_secondTime(useremail,userid,instanceid):
     ses_client = boto3.client("ses", region_name="us-east-1")
     CHARSET = "UTF-8"
-    HTML_EMAIL_CONTENT = """
+    HTML_EMAIL_CONTENT = f"""
         <html>
             <head></head>
             <h1 style='text-align:center'>Low CPU Utilization Notification</h1>
@@ -119,12 +119,12 @@ def send_deleteInstance_notification_email_secondTime(useremail,userid,instancei
                 "Data": "VBS Cloud Notification",
             },
         },
-        Source="aldrich_chen@htc.com")
+        Source="admin@tzuchuan.info")
 
 def send_cost_notification_email(useremail,userid,totalcost,detaillink):
     ses_client = boto3.client("ses", region_name="us-east-1")
     CHARSET = "UTF-8"
-    HTML_EMAIL_CONTENT = """
+    HTML_EMAIL_CONTENT = f"""
         <html>
             <head></head>
             <h1 style='text-align:center'>Cost Notification</h1>
@@ -155,7 +155,7 @@ def send_cost_notification_email(useremail,userid,totalcost,detaillink):
                 "Data": "VBS Cloud Notification",
             },
         },
-        Source="Aldrich_Chen@htc.com")
+        Source="admin@tzuchuan.info")
 
 def process(event, context):
    
@@ -180,7 +180,7 @@ def process(event, context):
                 userid=item['userid']
                 region=item['region']
                 ec2type=item['instancetype']
-                stoppedTime=item['stoppedTime']
+                stoppedTime=item['stoppedtime']
                 cloudwatch = boto3.client('cloudwatch',region_name=region)
                 currentTime=datetime.now()
                 response = cloudwatch.get_metric_statistics(
@@ -251,9 +251,9 @@ def process(event, context):
                             
                     # elif instance_status['InstanceStatuses'][0]['InstanceState']['Name']=='stopped':
                     elif status=='stopped':
-                            response_1 = ec2.stop_instances(
-                                    InstanceIds=[ec2id]
-                                    )
+                            # response_1 = ec2.stop_instances(
+                            #         InstanceIds=[ec2id]
+                            #         )
                                 
                             table2 = dynamodb_resource.Table('VBS_Enterprise_Info')
                             usertable_response = table2.query(
@@ -261,40 +261,59 @@ def process(event, context):
                             )
                             item = usertable_response['Items'][0]
                             useremail=item['email']
+                            stoppedTime=item['stoppedtime']
+                            
                             x = datetime.now()
                              
                             format_string='%d/%m/%y %H:%M:%S'
                             datetimeString = x.strftime(format_string)
                             
+
                             logger.info(datetimeString)
-                            
-                            input_str = stoppedTime
+                            if stoppedTime=="":
+                                response = table.update_item(
+                                    Key={
+                                        'id':ec2id,
+                                    },
+                                    UpdateExpression="set publicIP = :r,publicDnsName= :p,launchtime= :q,stoppedtime= :s",
+                                    ExpressionAttributeValues={
+                                        ':r': "",
+                                        ':p': "",
+                                        ':q': "",
+                                        ':s': datetimeString,
+                                        
+                                    },
+                                    ReturnValues="UPDATED_NEW"
+                                )
 
-                            
-                            
-                            dt_object = datetime.strptime(input_str, '%d/%m/%y %H:%M:%S')
+                            else:
+                                input_str = stoppedTime
 
-                            logger.info("============Stopped=============")
-                            
-                            
-                            logger.info(datetimeString)
-                            
-                            deltaTime=x-dt_object
+                                
+                                
+                                dt_object = datetime.strptime(input_str, '%d/%m/%y %H:%M:%S')
 
-                            logger.info("=======deltaTime-----")
-                            logger.info(deltaTime)
+                                logger.info("============Stopped=============")
+                                
+                                
+                                logger.info(datetimeString)
+                                
+                                deltaTime=x-dt_object
+
+                                logger.info("=======deltaTime-----")
+                                logger.info(deltaTime)
 
 
-                            ######Eamil 要先認證
-                            # deltaTime.days=3.5
-                            # response = ses_client.verify_email_address(
-                            #     EmailAddress='aldrich_chen@htc.com'
-                            # )
-  
-                            if deltaTime.days>3:
-                                send_deleteInstance_notification_email_firstTime(useremail,userid,ec2id)
-                            elif deltaTime.days>4:
-                                send_deleteInstance_notification_email_secondTime(useremail,userid,ec2id)
+                                ######Eamil 要先認證
+                                # deltaTime.days=3.5
+                                # response = ses_client.verify_email_address(
+                                #     EmailAddress='aldrich_chen@htc.com'
+                                # )
+    
+                                if deltaTime.days>3:
+                                    send_deleteInstance_notification_email_firstTime(useremail,userid,ec2id)
+                                elif deltaTime.days>4:
+                                    send_deleteInstance_notification_email_secondTime(useremail,userid,ec2id)
 
 
 

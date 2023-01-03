@@ -141,8 +141,22 @@ def process(event, context):
               BlockDeviceMappings=BlockDeviceMappings
           )
           
+          BlockDeviceMappings= instance['Instances'][0]['BlockDeviceMappings']
+          ec2_resource = boto3.resource('ec2')
+          for item in BlockDeviceMappings:
+            volumeId=item['Ebs']['VolumeId']
+            volume = ec2_resource.Volume(volumeId)
+            tag = volume.create_tags(
+                Tags=[
+                    {
+                        'Key': "owner",
+                        'Value': USERID
+                    },
+                ]
+            )
+
           instance_id = instance['Instances'][0]['InstanceId']
-       
+
   
           state='pending'
           publicIP=''
@@ -172,6 +186,7 @@ def process(event, context):
           'userid':{'S':USERID},
           'instancetype':{'S':INSTANCE_TYPE},
           'launchtime':{'S':launchtime},
+          'stoppedtime':{'S':""},
           'publicDnsName':{'S':publicDnsName}
           
         })

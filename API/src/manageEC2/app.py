@@ -149,11 +149,12 @@ def process(event, context):
                                 'id':instance_id,
                                
                             },
-                            UpdateExpression="set publicIP = :r,publicDnsName= :p,launchtime= :q",
+                            UpdateExpression="set publicIP = :r,publicDnsName= :p,launchtime= :q,stoppedtime= :s",
                             ExpressionAttributeValues={
                                 ':r': publicIP,
                                 ':p': publicDnsName,
                                 ':q': launchtime,
+                                ':s': ""
                                 
                             },
                             ReturnValues="UPDATED_NEW"
