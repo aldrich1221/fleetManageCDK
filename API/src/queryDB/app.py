@@ -5,6 +5,8 @@ import boto3
 import logging
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
+from datetime import datetime, timedelta,date
+from dateutil.relativedelta import relativedelta
 AccessControlAllowOrigin="https://d1wzk0972nk23y.cloudfront.net"
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -18,6 +20,7 @@ def process(event, context):
             pathParameters=event['pathParameters']
             tableName=pathParameters['tablename']
             action=pathParameters['actionid']
+            userid=pathParameters['userid']
     except:
         raise CustomError("Please check the parameters.")
 
@@ -88,7 +91,7 @@ def process(event, context):
                 item = sorted(item, key=lambda k: k['latency'], reverse=False)
                 
                 logger.info("============latency test event Response=============")
-                logger.info(query['userid'])
+                logger.info(userid)
                 logger.info(response)
                 json_data = [{
                             "status":"success",
@@ -171,7 +174,7 @@ def process(event, context):
                         'Tags': {
                             'Key': 'owner',
                             'Values': [
-                                query['userid'],
+                                userid,
                             ],
                             'MatchOptions': ['EQUALS']
                         }
@@ -185,37 +188,38 @@ def process(event, context):
                         'username':str(item['username']),
                         "cost":result
                     }
+                    logger.info("============latency test event Response=============")
+                    logger.info(userid)
+                    logger.info(response)
+                    json_data = [{
+                                "status":"success",
+                                "userinfo":data
+                                }]
                 else:
-                    client_ce = boto3.client('ce')
-                    result = client_ce.get_cost_and_usage(
-                    TimePeriod = {
-                        'Start': d2,
-                        'End': d
-                    },
-                    Granularity = 'DAILY',
-                    Metrics = ["AmortizedCost"],
-                    Filter={
-                        'Tags': {
-                            'Key': 'owner',
-                            'Values': [
-                                query['userid'],
-                            ],
-                            'MatchOptions': ['EQUALS']
-                        }
-                    }
-                    )
-                    data={
-                        "userid":query['userid'],
-                        "instanceQuota":str(10),
-                        "cost":result
-                    }
-                logger.info("============latency test event Response=============")
-                logger.info(query['userid'])
-                logger.info(response)
-                json_data = [{
-                            "status":"success",
-                            "userinfo":data
-                            }]
+                    # client_ce = boto3.client('ce')
+                    # result = client_ce.get_cost_and_usage(
+                    # TimePeriod = {
+                    #     'Start': d2,
+                    #     'End': d
+                    # },
+                    # Granularity = 'DAILY',
+                    # Metrics = ["AmortizedCost"],
+                    # Filter={
+                    #     'Tags': {
+                    #         'Key': 'owner',
+                    #         'Values': [
+                    #             userid,
+                    #         ],
+                    #         'MatchOptions': ['EQUALS']
+                    #     }
+                    # }
+                    # )
+                    # data={
+                    #     "userid":userid,
+                    #     "instanceQuota":str(10),
+                    #     "cost":result
+                    # }
+                    json_data=[]
                 return json_data
             except:
                 raise

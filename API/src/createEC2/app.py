@@ -8,11 +8,48 @@ import os
 from boto3.dynamodb.conditions import Key, Attr
 import logging
 from datetime import datetime
+import requests
 AccessControlAllowOrigin="https://d1wzk0972nk23y.cloudfront.net"
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 class CustomError(Exception):
   pass
+
+def getAMI(region):
+    baseUrl="https://vxtiwk095b.execute-api.us-east-1.amazonaws.com/prod/images/"
+    
+    headers = {
+          'Authorization':'Basic cnJ0ZWFtOmlsb3ZlaHRj',
+          'accept': 'application/json' 
+      }
+
+    req = requests.get(
+    baseUrl+region,
+    headers=headers
+      )
+    resp_dict = req.json()
+    logger.info("======== req ------")
+    logger.info(resp_dict)
+    return resp_dict
+def getSnapshotID(contentid,region):
+  baseUrl="https://vxtiwk095b.execute-api.us-east-1.amazonaws.com/prod/contents/"
+  #contentid="f16e6a8c-4091-4453-a1c7-1cbc6814d9c4"
+  #region="ap-east-1"
+  
+#   https://vxtiwk095b.execute-api.us-east-1.amazonaws.com/prod/contents/f16e6a8c-4091-4453-a1c7-1cbc6814d9c4/ap-east-1
+  headers = {
+        'Authorization':'Basic cnJ0ZWFtOmlsb3ZlaHRj',
+        'accept': 'application/json' 
+    }
+
+  req = requests.get(
+   baseUrl+contentid+"/"+region,
+   headers=headers
+    )
+  resp_dict = req.json()
+  logger.info("======== req ------")
+  logger.info(resp_dict['snapshot_id'])
+  return resp_dict['snapshot_id']
 def process(event, context):
     try:
             logger.info(event)
@@ -46,53 +83,71 @@ def process(event, context):
       logger.info(instance_data)
       ec2info=instance_data['Items'][0]
       SecurityGroupId=ec2info['securitygroupID']
-      if userAMI=='withsteam':
-        AMI=ec2info['AMI_withsteam']
-      else:
-        AMI=ec2info['AMI_withoutsteam']
+      # if userAMI=='withsteam':
+      #   AMI=ec2info['AMI_withsteam']
+      # else:
+      #   AMI=ec2info['AMI_withoutsteam']
+     
       KEY_NAME=ec2info['keypairName']
       REGION=ec2info['region']
       ARN='arn:aws:iam::867217160264:instance-profile/VBSEC2InstanceProfile'
   
       ec2 = boto3.client('ec2', region_name=REGION)
-      
+      AMI=getAMI(REGION) 
       
       # if 'appid' in query.keys():
       if True:
-        table_content = dynamodb_resource.Table('aldrichtest')
+        
         logger.info("============table_content=============")
         BlockDeviceMappings=[{'DeviceName': '/dev/sda1',
                       'Ebs': {
                           'DeleteOnTermination': True,
-                          'VolumeSize': 150,
+                          'VolumeSize': 250,
                           
                       },}]
         deviceName=['xvda','xvdb','xvdc','xvdd','xvde','xvdf','xvdg','xvdh','xvdi','xvdj','xvdk','xvdl','xvdm','xvdn','xvdo','xvdp','xvdq','xvdr','xvds','xvdt','xvdu','xvdv','xvdw','xvdx','xvdy','xvdz']
+        table_content = dynamodb_resource.Table('aldrichtest')
         blocki=0
         for appid in appids:
-          contentData = table_content.scan(
-                      FilterExpression=Attr("appid").eq(str(appid))
-                     
-                  )
-        
-          logger.info(contentData)
-          for item in contentData['Items']:
-            if item['region']==REGION:
-              EBSID=item['volid']      
-              AppID=item['appid']
-              BlockDeviceMappings.append(
+          snapshotid=getSnapshotID(appid,REGION)
+          BlockDeviceMappings.append(
                   {
                       'DeviceName': deviceName[blocki],
                       'Ebs': {
                           'DeleteOnTermination': True,
-                          'SnapshotId': EBSID,
+                          'SnapshotId': snapshotid,
                           'VolumeSize': 150,
                           'Encrypted': True
                       },
                    
                   }
                 )      
-              blocki=blocki+1
+          blocki=blocki+1
+          ########################################################################
+          # contentData = table_content.scan(
+          #             FilterExpression=Attr("appid").eq(str(appid))
+                     
+          #         )
+        
+          # logger.info(contentData)
+          # for item in contentData['Items']:
+          #   if item['region']==REGION:
+          #     EBSID=item['volid']      
+          #     AppID=item['appid']
+          #     BlockDeviceMappings.append(
+          #         {
+          #             'DeviceName': deviceName[blocki],
+          #             'Ebs': {
+          #                 'DeleteOnTermination': True,
+          #                 'SnapshotId': EBSID,
+          #                 'VolumeSize': 150,
+          #                 'Encrypted': True
+          #             },
+                   
+          #         }
+          #       )      
+          #     blocki=blocki+1
+          ##################################################################
               
               
         tag_1 = {"Key": "UserID", "Value": USERID}
@@ -114,7 +169,6 @@ def process(event, context):
             Copy-S3Object -BucketName vbs-ami-resources -Key installer/golden_user_data.ps1 -LocalFile C:\golden_user_data.ps1 -Region us-east-1
             powershell -executionpolicy unrestricted -File 'C:\\golden_user_data.ps1'
             </powershell>
-            <persist>true</persist>
             '''
           instance = ec2.run_instances(
               ImageId=AMI,
@@ -177,7 +231,7 @@ def process(event, context):
           response=dynamodb.put_item(TableName='VBS_Instances_Information', Item={
           'id':{'S':instance_id},
           'publicIP':{'S':publicIP},
-          
+          'appStatus':{'S':""},
           'region':{'S':REGION},
           'zone':{'S':ZONE},
           'userid':{'S':USERID},

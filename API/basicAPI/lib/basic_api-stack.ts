@@ -29,7 +29,7 @@ export class BasicApiStack extends Stack {
       }),
       timeout: Duration.seconds(900),
     });
-
+    
     ///////////////////Create EC2////////////////
     const Function_vbs_create_ec2 = new lambda.DockerImageFunction(this, 'Function_vbs_create_ec2',{
       functionName: 'Function_vbs_create_ec2',

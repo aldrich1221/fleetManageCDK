@@ -102,7 +102,7 @@ def lambda_handler(event, context):
     # For this demo, the token is verified if it is equal to 'allow' and other values are invalid 
     
 
-    if(event['headers']['authorizationtoken'] == 'allow'):
+    if(event['headers']['authorizationtoken'] == 'Basic cnJ0ZWFtOmlsb3ZlaHRj'):
     # if(event['authorizationToken'] == 'allow'):
     # if(event['headers']['authorizationToken'] == 'allow'):
     # if(event['headers']['Authorization'] == 'allow'):

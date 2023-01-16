@@ -221,7 +221,7 @@ export class ApiConstructStack extends Stack {
 
     const eventRule_vbs_lifecycle_manage=new events.Rule(this, "twentyDaysRule", {
     
-      schedule:events.Schedule.rate(cdk.Duration.minutes(5))
+      schedule:events.Schedule.rate(cdk.Duration.minutes(10))
     });
 
     eventRule_vbs_lifecycle_manage.addTarget(

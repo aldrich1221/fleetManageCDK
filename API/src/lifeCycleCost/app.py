@@ -231,7 +231,7 @@ def process(event, context):
                     logger.info("============CPUUtilization_threshold=============")
                     
                     # logger.info(response['Datapoints'][0]['Average'])
-                    CPUUtilization_threshold={'g4dn.xlarge':20,'t3.medium':15,'g4dn.2xlarge':20}
+                    CPUUtilization_threshold={'g4dn.xlarge':15,'t3.medium':15,'g4dn.2xlarge':11}
                     # if len(instance_status['InstanceStatuses'])>0:
                         # if instance_status['InstanceStatuses'][0]['InstanceState']['Name']=='running':
                     if status=='running':

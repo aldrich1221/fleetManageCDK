@@ -4,8 +4,7 @@ import json
 import boto3
 import logging
 import boto3
-from datetime import datetime, timedelta,date
-from dateutil.relativedelta import relativedelta
+from boto3.dynamodb.conditions import Key, Attr
 AccessControlAllowOrigin="https://d1wzk0972nk23y.cloudfront.net"
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -17,54 +16,45 @@ def process(event, context):
             body=event['body']
             body= json.loads(body)
             pathParameters=event['pathParameters']
-            userid=pathParameters['userid']
-            actionid=pathParameters['actionid']
+            tableName=pathParameters['tablename']
+            action=pathParameters['actionid']
     except:
         raise CustomError("Please check the parameters.")
-
+    
     #########code here
-    try:
-        if actionid=="nearestWeek":
-            today = date.today()
-            d = today.strftime("%Y-%m-%d")
-            one_months = today + relativedelta(days=-7)
-            d2=one_months.strftime("%Y-%m-%d")
-            
-            client = boto3.client('ce')
+    if tableName=='VBS_Instances_Information':
+        dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
+
+        table = dynamodb_resource.Table('VBS_Instances_Information')
+        if action=='updateAPPStatus':
+            try:
+                instance_id=body["instanceId"]
+                appstatus=body["appStatus"]
+
+                response = table.update_item(
+                            Key={
+                                'id':instance_id,
+                            },
+                            UpdateExpression="set appStatus = :r",
+                            ExpressionAttributeValues={
+                                ':r': appstatus,  
+                            },
+                            ReturnValues="UPDATED_NEW"
+                        )
+
+                json_data = [{
+                                "status":"success",
+                                "data":response
+                                }]
+                logger.info("=========== Instance Table Response=============")
+                logger.info(json_data)
+                return json_data
+            except:
+                raise
+ 
+      
         
-            
-                
-            logger.info("============result=============")
-            logger.info(d)
-            logger.info(d2)
-            result = client.get_cost_and_usage(
-            TimePeriod = {
-                'Start': d2,
-                'End': d
-            },
-            Granularity = 'DAILY',
-            Metrics = ["AmortizedCost"],
-            Filter={
-                'Tags': {
-                    'Key': 'owner',
-                    'Values': [
-                        userid,
-                    ],
-                    'MatchOptions': ['EQUALS']
-                }
-            }
-            )
-            logger.info("============result=============")
-            logger.info(result)
-            
-            json_data = [{"data": result, 
-                            "status":"Success",
-                        
-                        }]
-        return json_data
-        
-    except:
-        raise
+    
     ###########code here
     return "good"
 def lambda_handler(event, context):
