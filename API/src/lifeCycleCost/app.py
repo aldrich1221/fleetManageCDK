@@ -176,7 +176,11 @@ def process(event, context):
             logger.info(response) 
             data=[]
             for item in response['Items']:
+                
                 ec2id=item['id']
+                logger.info("============Now Process EC2ID:=============")
+                logger.info(item)
+                logger.info(ec2id)
                 userid=item['userid']
                 region=item['region']
                 ec2type=item['instancetype']
@@ -224,17 +228,21 @@ def process(event, context):
                     response_2=dynamodb.delete_item(TableName='VBS_Instances_Information',Key={'id':{'S':ec2id}})
                     
                 status=response_describe['Reservations'][0]['Instances'][0]['State']['Name']
+                logger.info("instance_status")
                 logger.info(instance_status)
+                logger.info("status")
                 logger.info(status)
                 if instance_status!=None:
                     # stringlog=f'{str(response['Datapoints'][0]['Average'])} vs {str(CPUUtilization_threshold)}'
                     logger.info("============CPUUtilization_threshold=============")
                     
                     # logger.info(response['Datapoints'][0]['Average'])
-                    CPUUtilization_threshold={'g4dn.xlarge':15,'t3.medium':15,'g4dn.2xlarge':11}
+                    CPUUtilization_threshold={'g4dn.xlarge':15,'t3.medium':15,'g4dn.2xlarge':15}
                     # if len(instance_status['InstanceStatuses'])>0:
                         # if instance_status['InstanceStatuses'][0]['InstanceState']['Name']=='running':
+                    logger.info("=========Go check stauts=================")
                     if status=='running':
+                            logger.info("=============status=='running'=================")
                             logger.info(instance_status['InstanceStatuses'][0]['InstanceState'])
                             if response['Datapoints'][0]['Average']<CPUUtilization_threshold[ec2type]:
                                 response_1 = ec2.stop_instances(
@@ -247,73 +255,71 @@ def process(event, context):
                                 )
                                 item = usertable_response['Items'][0]
                                 useremail=item['email']
-                                send_cpuUtilization_notification_email(useremail,userid,ec2id)
+                                # send_cpuUtilization_notification_email(useremail,userid,ec2id)
                             
                     # elif instance_status['InstanceStatuses'][0]['InstanceState']['Name']=='stopped':
-                    elif status=='stopped':
-                            # response_1 = ec2.stop_instances(
-                            #         InstanceIds=[ec2id]
-                            #         )
-                                
-                            table2 = dynamodb_resource.Table('VBS_Enterprise_Info')
-                            usertable_response = table2.query(
-                            KeyConditionExpression=Key('userid').eq(userid)
-                            )
-                            item = usertable_response['Items'][0]
-                            useremail=item['email']
-                            stoppedTime=item['stoppedtime']
+                    # elif status=='stopped':
                             
-                            x = datetime.now()
+                                
+                    #         table2 = dynamodb_resource.Table('VBS_Enterprise_Info')
+                    #         usertable_response = table2.query(
+                    #         KeyConditionExpression=Key('userid').eq(userid)
+                    #         )
+                    #         item = usertable_response['Items'][0]
+                    #         useremail=item['email']
+                    #         stoppedTime=item['stoppedtime']
+                            
+                    #         x = datetime.now()
                              
-                            format_string='%d/%m/%y %H:%M:%S'
-                            datetimeString = x.strftime(format_string)
+                    #         format_string='%d/%m/%y %H:%M:%S'
+                    #         datetimeString = x.strftime(format_string)
                             
 
-                            logger.info(datetimeString)
-                            if stoppedTime=="":
-                                response = table.update_item(
-                                    Key={
-                                        'id':ec2id,
-                                    },
-                                    UpdateExpression="set publicIP = :r,publicDnsName= :p,launchtime= :q,stoppedtime= :s",
-                                    ExpressionAttributeValues={
-                                        ':r': "",
-                                        ':p': "",
-                                        ':q': "",
-                                        ':s': datetimeString,
+                    #         logger.info(datetimeString)
+                    #         if stoppedTime=="":
+                    #             response = table.update_item(
+                    #                 Key={
+                    #                     'id':ec2id,
+                    #                 },
+                    #                 UpdateExpression="set publicIP = :r,publicDnsName= :p,launchtime= :q,stoppedtime= :s",
+                    #                 ExpressionAttributeValues={
+                    #                     ':r': "",
+                    #                     ':p': "",
+                    #                     ':q': "",
+                    #                     ':s': datetimeString,
                                         
-                                    },
-                                    ReturnValues="UPDATED_NEW"
-                                )
+                    #                 },
+                    #                 ReturnValues="UPDATED_NEW"
+                    #             )
 
-                            else:
-                                input_str = stoppedTime
+                    #         else:
+                    #             input_str = stoppedTime
 
                                 
                                 
-                                dt_object = datetime.strptime(input_str, '%d/%m/%y %H:%M:%S')
+                    #             dt_object = datetime.strptime(input_str, '%d/%m/%y %H:%M:%S')
 
-                                logger.info("============Stopped=============")
+                    #             logger.info("============Stopped=============")
                                 
                                 
-                                logger.info(datetimeString)
+                    #             logger.info(datetimeString)
                                 
-                                deltaTime=x-dt_object
+                    #             deltaTime=x-dt_object
 
-                                logger.info("=======deltaTime-----")
-                                logger.info(deltaTime)
+                    #             logger.info("=======deltaTime-----")
+                    #             logger.info(deltaTime)
 
 
-                                ######Eamil 要先認證
-                                # deltaTime.days=3.5
-                                # response = ses_client.verify_email_address(
-                                #     EmailAddress='aldrich_chen@htc.com'
-                                # )
+                    #             ######Eamil 要先認證
+                    #             # deltaTime.days=3.5
+                    #             # response = ses_client.verify_email_address(
+                    #             #     EmailAddress='aldrich_chen@htc.com'
+                    #             # )
     
-                                if deltaTime.days>3:
-                                    send_deleteInstance_notification_email_firstTime(useremail,userid,ec2id)
-                                elif deltaTime.days>4:
-                                    send_deleteInstance_notification_email_secondTime(useremail,userid,ec2id)
+                    #             if deltaTime.days>3:
+                    #                 send_deleteInstance_notification_email_firstTime(useremail,userid,ec2id)
+                    #             elif deltaTime.days>4:
+                    #                 send_deleteInstance_notification_email_secondTime(useremail,userid,ec2id)
 
 
 
