@@ -252,16 +252,29 @@ def processEvent_Enlarge_Running_Pool(message):
     if diff_running<0:
         if diff_stopped>0:
             if abs(diff_stopped)-abs(diff_running)<0:
-                # startEC2()+createEC2
+                print("startEC2()+createEC2")
             else:
-                # startEC2()
+                print("startEC2(abs(diff_running))")
         else:
             # createEC2(abs(diff_running)+abs(diff_stopped))
             # stope(abs(diff_stopped)) 
-            payload = { "pathParameters": { "id":"123456"} } 
-            result = lambdaclient.invoke(FunctionName='Function_vbs_createEC2',
-                        InvocationType='RequestResponse',                                      
-                        Payload=json.dumps(payload))
+            for i in range(abs(diff_running)+abs(diff_stopped)):
+                payload = { 
+                    "pathParameters": { "userid":"HTC_RRTeam"},
+                    "body":
+                        { 
+                            "ec2zone":body_json['zone'],
+                            "ec2type":"t3.medium",
+                            'userAMI':"withSteam",
+                            'spot':False
+                        } } 
+
+                result = lambdaclient.invoke(FunctionName='Function_vbs_create_ec2',
+                            InvocationType='RequestResponse',                                      
+                            Payload=json.dumps(payload))
+
+            
+                    
     
     
 
