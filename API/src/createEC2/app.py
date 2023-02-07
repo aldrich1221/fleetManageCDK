@@ -106,7 +106,7 @@ def process(event, context):
                           
                       },}]
         deviceName=['xvda','xvdb','xvdc','xvdd','xvde','xvdf','xvdg','xvdh','xvdi','xvdj','xvdk','xvdl','xvdm','xvdn','xvdo','xvdp','xvdq','xvdr','xvds','xvdt','xvdu','xvdv','xvdw','xvdx','xvdy','xvdz']
-        table_content = dynamodb_resource.Table('aldrichtest')
+        # table_content = dynamodb_resource.Table('aldrichtest')
         blocki=0
         for appid in appids:
           snapshotid=getSnapshotID(appid,REGION)

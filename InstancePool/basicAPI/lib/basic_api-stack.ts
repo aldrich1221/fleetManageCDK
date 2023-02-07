@@ -90,8 +90,18 @@ export class BasicApiStack extends cdk.Stack {
       /////////////////////////////////////   Queue  ///////////////////////////
       const queue = new  sqs.Queue(this, 'VBS_Cloud_MessageQueue', {
         queueName: 'VBS_Cloud_MessageQueue',
-    });
+      });
 
+      const queueL1 = new  sqs.Queue(this, 'VBS_Cloud_MessageQueue_L1', {
+        queueName: 'VBS_Cloud_MessageQueue_L1',
+      });
+      const queueL2 = new  sqs.Queue(this, 'VBS_Cloud_MessageQueue_L2', {
+        queueName: 'VBS_Cloud_MessageQueue_L2',
+      });
+      const queueL3= new  sqs.Queue(this, 'VBS_Cloud_MessageQueue_L3', {
+        queueName: 'VBS_Cloud_MessageQueue_L3',
+      });
+     
       /////////////////////////////////////   consumer  ///////////////////////////
       const Function_vbs_message_consumer = new lambda.DockerImageFunction(this, 'Function_vbs_message_consumer',{
         functionName: 'Function_vbs_message_consumer',
@@ -173,6 +183,57 @@ export class BasicApiStack extends cdk.Stack {
     API_vbs_attach_ec2_regionid.addMethod('POST',
     new apigateway.LambdaIntegration(Function_vbs_attach_ec2, {proxy: true}), {
       authorizer: Authorizer_vbs_attach_ec2
+    });
+
+
+    //////////////////////////// test ///////////////////
+    
+    const Function_vbs_test_pool = new lambda.DockerImageFunction(this, 'Function_vbs_test_pool',{
+      functionName: 'Function_vbs_test_pool',
+      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/test'), {
+      cmd: [ "app.lambda_handler" ],
+    
+     
+      }),
+      timeout: Duration.seconds(900),
+  });
+
+    const Policy_vbs_test_pool = new iam.PolicyStatement();
+    Policy_vbs_test_pool.addResources("*");
+    Policy_vbs_test_pool.addActions("*");
+    Function_vbs_test_pool.addToRolePolicy(Policy_vbs_test_pool);
+    const API_vbs_test_pool=new apigateway.LambdaRestApi(this, 'API_vbs_test_pool', {
+      handler: Function_vbs_test_pool,
+      restApiName:'API_vbs_test_pool',
+      proxy: false,
+      apiKeySourceType:ApiKeySourceType.HEADER,
+      defaultCorsPreflightOptions: { 
+        allowHeaders: [
+          'Content-Type',
+          'X-Amz-Date',
+          'authorization',
+          'Authorization',
+          'X-Api-Key',
+          'authorizationtoken',
+          'authorizationToken'
+        ],
+        allowOrigins: apigateway.Cors.ALL_ORIGINS },
+      integrationOptions: {
+      allowTestInvoke: false,
+        timeout: Duration.seconds(29),
+      }
+    });
+
+    const API_vbs_test_pool_v1 = API_vbs_test_pool.root.addResource('v1');
+    
+    
+    const Authorizer_vbs_test_pool = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_test_pool', {
+      handler: Function_vbs_api_authorize,
+      identitySources: [apigateway.IdentitySource.header('authorizationtoken')]
+    });
+    API_vbs_test_pool_v1.addMethod('POST',
+    new apigateway.LambdaIntegration(Function_vbs_test_pool, {proxy: true}), {
+      authorizer: Authorizer_vbs_test_pool
     });
 
 

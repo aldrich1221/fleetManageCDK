@@ -4,6 +4,9 @@ import json
 import boto3
 import logging
 import boto3
+import datetime
+import uuid
+import time
 AccessControlAllowOrigin="https://d1wzk0972nk23y.cloudfront.net"
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -23,6 +26,7 @@ def process(event, context):
         appIds=body['appIds']
         amount=body['amount']
 
+      
 
     except:
         raise CustomError("Please check the parameters.")
@@ -48,14 +52,111 @@ def process(event, context):
     sqs = boto3.resource('sqs')
     queue = sqs.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue')
 
-    queue.send_message(MessageBody='boto3', MessageAttributes={
-    'Author': {
-        'StringValue': 'Daniel',
-        'DataType': 'String'
-        }
-    })
-    
+    now_datetime = datetime.datetime.now()
+    dateTimeStr = now_datetime.strftime("%Y-%m-%d/%H:%M:%S:%f")
+    parameter = {"zone" : regionId,'amount':amount,'appIds':appIds}
+    parameterStr = json.dumps(parameter)
+    msgId=str(uuid.uuid4())
 
+    logger.info("======== msgId ------")
+    logger.info(msgId)
+
+    logger.info("======== dateTimeStr ------")
+    logger.info(dateTimeStr)
+    
+    logger.info("======== parameterStr ------")
+    logger.info(parameterStr)
+    
+    queue.send_message(
+        MessageBody=parameterStr, 
+        MessageAttributes={
+        'ActionEvent': {
+            'StringValue': 'AttachEC2',
+            'DataType': 'String'
+            },
+        'DateTime': {
+            'StringValue': dateTimeStr,
+            'DataType': 'String'
+            },
+        'User': {
+            'StringValue': userId,
+            'DataType': 'String'
+            },
+        'EventUUID':{
+            'StringValue': msgId,
+            'DataType': 'String'
+        },
+        })
+    ################### waiting for ownership############ 
+    availableInstances=[]
+    whileCount=0
+    while(True):
+        time.sleep(6)
+        dynamodbClient = boto3.client('dynamodb')
+        # response =dynamodbClient.query(
+        # TableName='VBS_Instance_Pool',
+        # IndexName="gsi_zone_available_index",
+        # Select='ALL_PROJECTED_ATTRIBUTES',
+        # # ConsistentRead=True,
+        # ReturnConsumedCapacity='INDEXES',
+        # ScanIndexForward=False, # return results in descending order of sort key
+        # KeyConditionExpression='gsi_zone = :z And available= :y',
+        # ExpressionAttributeValues={":z": {"S": regionId},":y": {"S": "true"}}
+        # )   
+
+        response =dynamodbClient.query(
+        TableName='VBS_Instance_Pool',
+        IndexName="eventId-index",
+        Select='ALL_PROJECTED_ATTRIBUTES',
+        # ConsistentRead=True,
+        ReturnConsumedCapacity='INDEXES',
+        ScanIndexForward=False, # return results in descending order of sort key
+        KeyConditionExpression='eventId = :z',
+        ExpressionAttributeValues={":z": {"S": msgId}}
+        )   
+        logger.info("======== response ------")
+        logger.info(response)
+        availableInstanceCount=0
+        availableInstances=[]
+        for item in response['Items']:
+            if (item['available']['S']=='true') & (item['userId']['S']==userId) & (item['eventId']['S']==msgId):
+                newItem={
+                    'instanceId':item['instanceId']['S'],
+                    'instanceIp':item['instanceIp']['S'],
+                    'available':item['available']['S'],
+                    'userId':item['userId']['S'],
+                    'eventId':item['eventId']['S'],
+                    'zone':item['zone']['S']
+                }
+                
+                availableInstances.append(newItem)
+                availableInstanceCount=availableInstanceCount+1
+
+        if availableInstanceCount==amount:
+            break
+        whileCount=whileCount+1
+        if whileCount>10:
+            raise CustomError("Error-From while Loop")
+            
+    
+    ##################### return the available instances #######################
+    #######update the available to false and return available instances 
+    dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
+
+    table = dynamodb_resource.Table('VBS_Instance_Pool')
+    for item in availableInstances:
+
+        response = table.update_item(
+                    Key={
+                        'id':item['instanceId'],
+                    },
+                    UpdateExpression="set available = :r",
+                    ExpressionAttributeValues={
+                        ':r': 'false',  
+                    },
+                    ReturnValues="UPDATED_NEW"
+                )
+    return availableInstances
     ###########code here
     return "good"
 def lambda_handler(event, context):
