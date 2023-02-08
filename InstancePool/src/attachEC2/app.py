@@ -54,8 +54,7 @@ def process(event, context):
 
     now_datetime = datetime.datetime.now()
     dateTimeStr = now_datetime.strftime("%Y-%m-%d/%H:%M:%S:%f")
-    parameter = {"zone" : regionId,'amount':amount,'appIds':appIds}
-    parameterStr = json.dumps(parameter)
+    
     msgId=str(uuid.uuid4())
 
     logger.info("======== msgId ------")
@@ -64,9 +63,13 @@ def process(event, context):
     logger.info("======== dateTimeStr ------")
     logger.info(dateTimeStr)
     
+   
+    
+    parameter = {"zone" : regionId,'amount':amount,'appIds':appIds,'dateTimeStr':dateTimeStr,'userId':userId,'eventUUID':msgId}
+    parameterStr = json.dumps(parameter)
+
     logger.info("======== parameterStr ------")
     logger.info(parameterStr)
-    
     queue.send_message(
         MessageBody=parameterStr, 
         MessageAttributes={
@@ -74,18 +77,6 @@ def process(event, context):
             'StringValue': 'AttachEC2',
             'DataType': 'String'
             },
-        'DateTime': {
-            'StringValue': dateTimeStr,
-            'DataType': 'String'
-            },
-        'User': {
-            'StringValue': userId,
-            'DataType': 'String'
-            },
-        'EventUUID':{
-            'StringValue': msgId,
-            'DataType': 'String'
-        },
         })
     ################### waiting for ownership############ 
     availableInstances=[]
@@ -126,7 +117,8 @@ def process(event, context):
                     'available':item['available']['S'],
                     'userId':item['userId']['S'],
                     'eventId':item['eventId']['S'],
-                    'zone':item['zone']['S']
+                    'zone':item['zone']['S'],
+                    'region':item['region']['S']
                 }
                 
                 availableInstances.append(newItem)
@@ -148,7 +140,8 @@ def process(event, context):
 
         response = table.update_item(
                     Key={
-                        'id':item['instanceId'],
+                        'instanceId':item['instanceId'],
+                        'region':item['region'],
                     },
                     UpdateExpression="set available = :r",
                     ExpressionAttributeValues={

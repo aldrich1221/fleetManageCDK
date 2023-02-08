@@ -80,6 +80,19 @@ def process(event, context):
                             },
                             ReturnValues="UPDATED_NEW"
                         )
+          table2 = dynamodb_resource.Table('VBS_Instance_Pool')
+          response = table2.update_item(
+                            Key={
+                                'instanceId':instance_id,
+                                'region':REGION
+                               
+                            },
+                            UpdateExpression="set instanceStatus = :r",
+                            ExpressionAttributeValues={
+                                ':r': 'stopped',
+                            },
+                            ReturnValues="UPDATED_NEW"
+                        )
           json_data = {"data":  [response_1,response] , 
                             
                             "status":"success",
@@ -160,7 +173,19 @@ def process(event, context):
                             },
                             ReturnValues="UPDATED_NEW"
                         )
-            
+            table2 = dynamodb_resource.Table('VBS_Instance_Pool')
+            response = table2.update_item(
+                            Key={
+                                'instanceId':instance_id,
+                                'region':REGION
+                               
+                            },
+                            UpdateExpression="set instanceStatus = :r",
+                            ExpressionAttributeValues={
+                                ':r': 'running',
+                            },
+                            ReturnValues="UPDATED_NEW"
+                        )
             
             
             json_data = {"data":  [response_1,response] , 

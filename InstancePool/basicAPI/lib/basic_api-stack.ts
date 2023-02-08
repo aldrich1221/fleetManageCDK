@@ -13,7 +13,7 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import {SqsEventSource} from 'aws-cdk-lib/aws-lambda-event-sources';
 
 import * as apigateway from 'aws-cdk-lib/aws-apigateway'
-
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 // declare const submitLambda: lambda.Function;
 // declare const getStatusLambda: lambda.Function;
 
@@ -85,6 +85,30 @@ export class BasicApiStack extends cdk.Stack {
 
       // const queue = new sqs.Queue(this, 'sqs-queue');
 
+   
+
+          ////////////////////////////////////// user usage table///////////////////////////
+          const table2 = new dynamodb.Table(this, 'Table2', { 
+            tableName:'VBS_User_UsageAndCost',
+            partitionKey: { name: 'eventId', type: dynamodb.AttributeType.STRING }, 
+            billingMode: dynamodb.BillingMode.PROVISIONED, 
+            readCapacity: 20,
+            writeCapacity: 20,
+            removalPolicy: cdk.RemovalPolicy.DESTROY,
+            sortKey: {name: 'datetime', type: dynamodb.AttributeType.STRING},
+            pointInTimeRecovery: true,
+            tableClass: dynamodb.TableClass.STANDARD,
+          });
+    
+          table2.addGlobalSecondaryIndex({
+            indexName: 'userId_datetime_index',
+            partitionKey: {name: 'userId', type: dynamodb.AttributeType.STRING},
+            sortKey: {name: 'datetime', type: dynamodb.AttributeType.STRING},
+            readCapacity: 1,
+            writeCapacity: 1,
+            projectionType: dynamodb.ProjectionType.ALL,
+          });
+
 
 
       /////////////////////////////////////   Queue  ///////////////////////////
@@ -126,13 +150,14 @@ export class BasicApiStack extends cdk.Stack {
 
 
        const Function_vbs_api_authorize = new lambda.DockerImageFunction(this, 'Function_vbs_api_authorize',{
-      functionName: 'Function_vbs_api_authorize_basic',
+      functionName: 'Function_vbs_api_authorize_basic_instancePool',
       code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/apiAuth'), {
       cmd: [ "app.lambda_handler" ],
       }),
       timeout: Duration.seconds(30),
     });
     
+
    /////////////////////////////////////   producer:attach_ec2  ///////////////////////////
     const Function_vbs_attach_ec2 = new lambda.DockerImageFunction(this, 'Function_vbs_attach_ec2',{
       functionName: 'Function_vbs_attach_ec2',
@@ -235,6 +260,80 @@ export class BasicApiStack extends cdk.Stack {
     new apigateway.LambdaIntegration(Function_vbs_test_pool, {proxy: true}), {
       authorizer: Authorizer_vbs_test_pool
     });
+
+
+
+    /////////////////////////////////////   producer:detach_ec2  ///////////////////////////
+    const Function_vbs_detach_ec2 = new lambda.DockerImageFunction(this, 'Function_vbs_detach_ec2',{
+      functionName: 'Function_vbs_detach_ec2',
+      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/detachEC2'), {
+      cmd: [ "app.lambda_handler" ],
+    
+     
+      }),
+      timeout: Duration.seconds(900),
+  });
+
+    const Policy_vbs_detach_ec2 = new iam.PolicyStatement();
+    Policy_vbs_detach_ec2.addResources("*");
+    Policy_vbs_detach_ec2.addActions("*");
+    Function_vbs_detach_ec2.addToRolePolicy(Policy_vbs_detach_ec2);
+    const API_vbs_detach_ec2=new apigateway.LambdaRestApi(this, 'API_vbs_detach_ec2', {
+      handler: Function_vbs_detach_ec2,
+      restApiName:'API_vbs_detach_ec2',
+      proxy: false,
+      apiKeySourceType:ApiKeySourceType.HEADER,
+      defaultCorsPreflightOptions: { 
+        allowHeaders: [
+          'Content-Type',
+          'X-Amz-Date',
+          'authorization',
+          'Authorization',
+          'X-Api-Key',
+          'authorizationtoken',
+          'authorizationToken'
+        ],
+        allowOrigins: apigateway.Cors.ALL_ORIGINS },
+      integrationOptions: {
+      allowTestInvoke: false,
+        timeout: Duration.seconds(29),
+      }
+    });
+
+    const API_vbs_detach_ec2_v1 = API_vbs_detach_ec2.root.addResource('v1');
+    const API_vbs_detach_ec2_user = API_vbs_detach_ec2_v1.addResource('user');
+    const API_vbs_detach_ec2_userid = API_vbs_detach_ec2_user.addResource('{userid}');
+    
+    
+    const Authorizer_vbs_detach_ec2 = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_detach_ec2', {
+      handler: Function_vbs_api_authorize,
+      identitySources: [apigateway.IdentitySource.header('authorizationtoken')]
+    });
+    API_vbs_detach_ec2_userid.addMethod('POST',
+    new apigateway.LambdaIntegration(Function_vbs_detach_ec2, {proxy: true}), {
+      authorizer: Authorizer_vbs_detach_ec2
+    });
+
+
+    const Function_vbs_create_ec2_emergency = new lambda.DockerImageFunction(this, 'Function_vbs_create_ec2_emergency',{
+      functionName: 'Function_vbs_create_ec2_emergency',
+      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/createEC2Emergency'), {
+      cmd: [ "app.lambda_handler" ],
+      }),
+      timeout: Duration.seconds(600),
+  });
+    const Policy_vbs_create_ec2_emergency = new iam.PolicyStatement();
+    Policy_vbs_create_ec2_emergency .addResources("*");
+    Policy_vbs_create_ec2_emergency .addActions("*");
+    Function_vbs_create_ec2_emergency .addToRolePolicy(Policy_vbs_create_ec2_emergency);
+  
+    
+ 
+
+
+
+  
+
 
 
   }

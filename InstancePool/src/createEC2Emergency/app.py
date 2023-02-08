@@ -35,7 +35,7 @@ def getSnapshotID(contentid,region):
   baseUrl="https://vxtiwk095b.execute-api.us-east-1.amazonaws.com/prod/contents/"
   #contentid="f16e6a8c-4091-4453-a1c7-1cbc6814d9c4"
   #region="ap-east-1"
-  
+
 #   https://vxtiwk095b.execute-api.us-east-1.amazonaws.com/prod/contents/f16e6a8c-4091-4453-a1c7-1cbc6814d9c4/ap-east-1
   headers = {
         'Authorization':'Basic cnJ0ZWFtOmlsb3ZlaHRj',
@@ -69,10 +69,11 @@ def process(event, context):
     appids=body['appids']
     userAMI=body['userAMI']
     spotFlag=body['spot']
-    amount=body['amount']  
+    amount=body['amount']
+   
     eventId=body['eventId']
     eventTime=body['eventTime']
-
+ 
     try:
       dynamodb = boto3.client('dynamodb')
       dynamodb_resource = boto3.resource('dynamodb', region_name=DEFAULTREGION)
@@ -245,17 +246,22 @@ def process(event, context):
             'publicDnsName':{'S':publicDnsName}
             
           })
+              
+
             response=dynamodb.put_item(TableName='VBS_Instance_Pool', Item={
             'instanceId':{'S':instance_id},
             'instanceIp':{'S':publicIP},
             'region':{'S':REGION},
             'zone':{'S':ZONE},
-            'userid':{'S':USERID},
+            'userId':{'S':USERID},
             'instanceStatus':{'S':'running'},
             'eventId':{'S':eventId},
             'eventTime':{'S':eventTime},
             'available':{'S':'true'},
             'gsi_zone':{'S':ZONE},
+
+            
+
            
             
           })

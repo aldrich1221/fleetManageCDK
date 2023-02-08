@@ -45,6 +45,30 @@ export class BasicDbStack extends cdk.Stack {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
+
+
+      // ////////////////////////////////////// user usage table///////////////////////////
+      //  const table2 = new dynamodb.Table(this, 'Table2', { 
+      //   tableName:'VBS_User_UsageAndCost',
+      //   partitionKey: { name: 'eventId', type: dynamodb.AttributeType.STRING }, 
+      //   billingMode: dynamodb.BillingMode.PROVISIONED, 
+      //   readCapacity: 20,
+      //   writeCapacity: 20,
+      //   removalPolicy: cdk.RemovalPolicy.DESTROY,
+      //   sortKey: {name: 'datetime', type: dynamodb.AttributeType.STRING},
+      //   pointInTimeRecovery: true,
+      //   tableClass: dynamodb.TableClass.STANDARD,
+      // });
+
+      // table2.addGlobalSecondaryIndex({
+      //   indexName: 'userId_datetime_index',
+      //   partitionKey: {name: 'userId', type: dynamodb.AttributeType.STRING},
+      //   sortKey: {name: 'datetime', type: dynamodb.AttributeType.STRING},
+      //   readCapacity: 1,
+      //   writeCapacity: 1,
+      //   projectionType: dynamodb.ProjectionType.ALL,
+      // });
+
     
     
     
