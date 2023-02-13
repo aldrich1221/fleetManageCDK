@@ -7,6 +7,7 @@ import boto3
 import requests
 import datetime
 import uuid
+import time
 runningThreshold=2
 stoppedThreshold=2
 dateTimeStrFormat = "%Y-%m-%d/%H:%M:%S:%f"
@@ -38,6 +39,7 @@ def getSnapshotID(contentid,region):
   logger.info(resp_dict['snapshot_id'])
   return resp_dict['snapshot_id']
 def releaseInstance(dbtable,instanceId,region,msgId,dateTimeStr):
+
     response = dbtable.update_item(
                 Key={
                     'instanceId':instanceId,
@@ -68,12 +70,75 @@ def eventRecord(dbtable,instanceId,zone,msgId,dateTimeStr,userId):
                 ReturnValues="UPDATED_NEW"
             )
 
+def detach_EBS_Volume(instanceIds,regions):
+
+    import boto3
+    import csv
+    import datetime
+    import logging
+    from os import environ
+    import collections
+    import time
+    import sys
+
+
+    def get_vol(instanceId, ec2):
+        allvol=[]
+        
+        resp = ec2.describe_volumes(
+            Filters=[{'Name':'attachment.instance-id','Values':[instanceId]}]
+        )
+        for volume1 in (resp["Volumes"]):
+            for volume in volume1['Attachments']:
+                resultVol = {
+                }
+             
+             
+                resultVol['vol_id'] = str(volume["VolumeId"])
+                # resultVol['vol_size'] = str(volume["Size"])
+                # resultVol['vol_type'] = str(volume["VolumeType"]) 
+                resultVol['vol_device'] = str(volume['Device'])
+    
+                allvol.append(resultVol)
+        return allvol
+       
+    for i in range(len(instanceIds)):
+        instanceId=instanceIds[i]
+        region=regions[i]
+        boto_client = boto3.setup_default_session(region_name=region)
+        boto_client = boto3.client('ec2')
+        ec2 = boto3.client('ec2')
+        ec2resource = boto3.resource('ec2', region_name=region)
+        
+        volsss = get_vol(instanceId, ec2)
+        # print(volsss)
+        for vol in volsss:
+            if vol['vol_device']=='/dev/sda1':
+                continue
+            print(vol)
+            # response = ec2.detach_volume(
+            #     Device=vol['vol_device'],
+            #     Force=True,
+            #     InstanceId=instanceId,
+            #     VolumeId=vol['vol_id'],
+            
+            # )
+
+            volume = ec2resource.Volume(vol['vol_id'])
+            volume.detach_from_instance(InstanceId=instanceId, Force=True)
+            waiter = ec2.get_waiter('volume_available')
+            waiter.wait(VolumeIds=[vol['vol_id']],)
+            print (" INFO : Volume Detached")
+
+            # Deleting Volume Device details already available
+            volume.delete()
+           
 def attach_EBS_Volume(finalInstances,appIds,region):
 
     logger.info("======== attach_EBS_Volume ------")
     logger.info(appIds)
     logger.info(region)
-
+    
 
     ec2Client = boto3.client('ec2')
     ec2Resource = boto3.resource('ec2')
@@ -90,42 +155,106 @@ def attach_EBS_Volume(finalInstances,appIds,region):
     for appid in appIds:
         snapshotid=getSnapshotID(appid,region)
         for item in finalInstances:
-            response = ec2Client.create_volume(
+            # response = ec2Client.create_volume(
               
-            AvailabilityZone=item['zone']['S'],
-            Size=50,
-            SnapshotId=snapshotid,
-            VolumeType='standard',
-            TagSpecifications=[
-                {
-                    'ResourceType': 'capacity-reservation',
-                    'Tags': [
-                        {
-                            'Key': 'appId',
-                            'Value': appid
-                        },
-                    ]
-                },
-            ],
+            # AvailabilityZone=item['zone']['S'],
+            # Size=50,
+            # SnapshotId=snapshotid,
+            # VolumeType='standard',
+            # TagSpecifications=[
+            #     {
+            #         'ResourceType': 'capacity-reservation',
+            #         'Tags': [
+            #             {
+            #                 'Key': 'appId',
+            #                 'Value': appid
+            #             },
+            #         ]
+            #     },
+            # ],
            
-            )
+            # )
   
-            VolumeId=response['VolumeId']
-            volume = ec2Resource.Volume(VolumeId)
+            # VolumeId=response['VolumeId']
+            # volume = ec2Resource.Volume(VolumeId)
 
-            response = volume.attach_to_instance(
-                Device=deviceName[blocki],
-                InstanceId=item['instanceId']['S'],
-            )
+            # response = volume.attach_to_instance(
+            #     Device=deviceName[blocki],
+            #     InstanceId=item['instanceId']['S'],
+            # )
+
+            Region=region
+    
+            boto_client = boto3.setup_default_session(region_name=Region)
+            boto_client = boto3.client('ec2')
+            ec2 = boto3.client('ec2')
+            response = ec2.describe_instances()
+            instance_dict = {}
+        
+            for reservation in response["Reservations"]:
+                for instance in reservation["Instances"]:
+                    if instance['State']['Name'] == "running":
+                        if instance.__contains__("Tags"):
+                            
+                            instance_dict[instance["InstanceId"]] = instance["InstanceId"],instance['Placement']['AvailabilityZone']
+                            
+                        else:
+                            
+                            instance_dict[instance["InstanceId"]] = instance["InstanceId"],instance['Placement']['AvailabilityZone']
+                        
+                    elif instance['State']['Name'] == "stopped":
+                        if instance.__contains__("Tags"):
+                           
+                            instance_dict[instance["InstanceId"]] = instance["InstanceId"],instance['Placement']['AvailabilityZone']
+                            
+                        else:
+                            
+                            instance_dict[instance["InstanceId"]] = instance["InstanceId"],instance['Placement']['AvailabilityZone']
+                        
+            # print()
+            # print(instance_dict)
+            iId = item['instanceId']['S']
+            
+            az = instance_dict[iId][1]
+            
+            size =50
+            
+            response= ec2.create_volume(
+                        AvailabilityZone=az,
+                        Encrypted=False,
+                        #Iops=100,
+                        #KmsKeyId='string',
+                        Size=int(size),
+                        SnapshotId=snapshotid,
+                        VolumeType='gp2',    #standard'|'io1'|'gp2'|'sc1'|'st1',
+                        DryRun=False,
+                      
+                        )
+          
+            # print("Volume ID : ", response['VolumeId'])
+            # print("Volume ID : ", response['VolumeId'])
+           
+            waiter = ec2.get_waiter('volume_available')
+        
+            waiter.wait(VolumeIds=[response['VolumeId']],)
+            # print (" INFO : Volume Detached")
+
+            response= ec2.attach_volume(Device=deviceName[blocki], InstanceId=instance_dict[iId][0], VolumeId=response['VolumeId'])
+            # print("State : ",response['State'])
+
+
         blocki=blocki+1
     
 def processEvent_Shrink_Running_Pool(message):
     lambdaclient=boto3.client('lambda')
-    action_event = message.message_attributes.get('ActionEvent').get('StringValue')
+    # action_event = message.message_attributes.get('ActionEvent').get('StringValue')
     # dateTimeStr = message.message_attributes.get('DateTime').get('StringValue')
     # userId = message.message_attributes.get('User').get('StringValue')
     # msgId = message.message_attributes.get('EventUUID').get('StringValue')
-    body_json=json.loads(message.body)
+    # body_json=json.loads(message.body)
+    body_json=json.loads(message["body"])
+
+
     logger.info(body_json)
     dateTimeStr = body_json['dateTimeStr']
     userId = body_json['userId']
@@ -137,10 +266,7 @@ def processEvent_Shrink_Running_Pool(message):
         if stoppedNum>stoppedThreshold:
             ec2ids,ec2regions=processPoolItemsToAPIFormat(runningPoolItems,runningNum-runningThreshold)
             deleteEC2(lambdaclient,ec2ids,ec2regions)
-        # elif(stoppedNum+runningNum-runningThreshold>stoppedThreshold):
-        #     ec2ids,ec2regions=processPoolItemsToAPIFormat(runningPoolItems,runningNum-runningThreshold)
-        #     stopEC2(lambdaclient,ec2ids,ec2regions)
-
+      
         else:
             # ##To Stop
             # total=runningNum-runningThreshold
@@ -155,18 +281,48 @@ def processEvent_Shrink_Running_Pool(message):
             stopEC2(lambdaclient,ec2ids,ec2regions)
             sendEvent_Enlarge_Stopped_Pool(zone)
 
-            
+def processEvent_Shrink_Stopped_Pool(message):
+    lambdaclient=boto3.client('lambda')
+    # action_event = message.message_attributes.get('ActionEvent').get('StringValue')
+    # dateTimeStr = message.message_attributes.get('DateTime').get('StringValue')
+    # userId = message.message_attributes.get('User').get('StringValue')
+    # msgId = message.message_attributes.get('EventUUID').get('StringValue')
+    # body_json=json.loads(message.body)
+    body_json=json.loads(message["body"])
+
+    logger.info(body_json)
+    dateTimeStr = body_json['dateTimeStr']
+    userId = body_json['userId']
+    msgId = body_json['eventUUID']
+    zone=body_json['zone']
     
+
+
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
+
+    if stoppedNum>stoppedThreshold:
+        if runningNum<runningThreshold:
+            ##send
+            sendEvent_Enlarge_Running_Pool(zone)
+        else:
+            ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum-stoppedThreshold)
+            deleteEC2(lambdaclient,ec2ids,ec2regions)
+
+
 
 def processEvent_attachEC2(message):
 
     logger.info("======== processEvent_attachEC2 ------")
     logger.info(message)
-    action_event = message.message_attributes.get('ActionEvent').get('StringValue')
+    # action_event = message.message_attributes.get('ActionEvent').get('StringValue')
     # dateTimeStr = message.message_attributes.get('DateTime').get('StringValue')
     # userId = message.message_attributes.get('User').get('StringValue')
     # msgId = message.message_attributes.get('EventUUID').get('StringValue')
-    body_json=json.loads(message.body)
+    
+    # body_json=json.loads(message.body)
+    body_json=json.loads(message["body"])
+
+
     logger.info(body_json)
     dateTimeStr = body_json['dateTimeStr']
     userId = body_json['userId']
@@ -381,55 +537,69 @@ def usageCompute(instancesIds,instancesRegions,dynamodbClient,userId,msgId):
     logger.info("======== usageCompute------")
     logger.info(instancesIds)
     logger.info(instancesRegions)
-    response =dynamodbClient.query(
-    TableName='VBS_Instance_Pool',
-   
-    Select='ALL_PROJECTED_ATTRIBUTES',
-    # ConsistentRead=True,
-    ReturnConsumedCapacity='INDEXES',
-    ScanIndexForward=False, # return results in descending order of sort key
-    KeyConditionExpression='instanceId = :z, region= :y',
-    ExpressionAttributeValues={":z": {"S": instancesIds},":y": {"S": instancesRegions}}
-    ) 
-    logger.info("======== usageCompute reponse------")
-    logger.info(response)
 
-    currenttime=datetime.datetime.now()
-    currenttimeStr =currenttime.strftime("%Y-%m-%d/%H:%M:%S:%f")
-  
-    for item in response['Items']:
-        logger.info(item)
-        if item['userId']['S']==userId:
-            eventTime=item['eventTime']['S']
-            
-            dt_object = datetime.datetime.strptime(eventTime, dateTimeStrFormat)
-            diff=currenttime-dt_object
-            diff_totalseconds=diff.total_seconds()
-            cost=diff_totalseconds*0.005
+    for i in range(len(instancesIds)):
+        instancesId=instancesIds[i]
+        region=instancesRegions[i]
+        
 
-          
-            diffStr =diff.strftime("%Y-%m-%d/%H:%M:%S:%f")
-            
-            response=dynamodbClient.put_item(TableName='VBS_User_UsageAndCost', Item={
-                'eventId':{'S':msgId},
-                'datetime':{'S':currenttimeStr},
-                'userId':{'S':userId},
-                'instanceId':{'S':item['instanceId']['S']},
-                'beginTime':{'S':eventTime},
-                'endTime':{'S':currenttimeStr},
-                'UsageTime':diffStr,
-                'UsageTime_totalseconds':str(diff_totalseconds),
-                'UsageCost':str(cost),
-                })
+        response =dynamodbClient.query(
+        TableName='VBS_Instance_Pool',
+        ReturnConsumedCapacity='INDEXES',
+        ScanIndexForward=False, # return results in descending order of sort key
+        KeyConditionExpression='instanceId = :z',
+        ExpressionAttributeValues={":z": {"S": instancesId}}
+        ) 
+
+        logger.info("======== usageCompute reponse------")
+        logger.info(response)
+
+        currenttime=datetime.datetime.now()
+        currenttimeStr =currenttime.strftime("%Y-%m-%d/%H:%M:%S:%f")
+    
+        for item in response['Items']:
+            logger.info(item)
+            if item['userId']['S']==userId:
+                eventTime=item['eventTime']['S']
+                
+                dt_object = datetime.datetime.strptime(eventTime, dateTimeStrFormat)
+                diff=currenttime-dt_object
+                diff_totalseconds=diff.total_seconds()
+                cost=diff_totalseconds*0.005
+
+                # diffStr =diff.strftime("%Y-%m-%d/%H:%M:%S:%f")
+                days = diff.days
+                seconds = diff.seconds
+
+                hours = seconds//3600
+                minutes = (seconds//60) % 60
+
+                diffStr=str(days)+' days '+str(hours)+' hours '+ str(minutes)+' minutes.'
+                
+                                
+                response=dynamodbClient.put_item(TableName='VBS_User_UsageAndCost', Item={
+                    'eventId':{'S':msgId},
+                    'datetime':{'S':currenttimeStr},
+                    'userId':{'S':userId},
+                    'instanceId':{'S':item['instanceId']['S']},
+                    'beginTime':{'S':eventTime},
+                    'endTime':{'S':currenttimeStr},
+                    'UsageTime':{'S':diffStr},
+                    'UsageTime_totalseconds':{'S':str(diff_totalseconds)},
+                    'UsageCost':{'S':str(cost)},
+                    })
 
 
 def processEvent_detachEC2(message):
     logger.info("======== processEvent_detachEC2 ------")
-    action_event = message.message_attributes.get('ActionEvent').get('StringValue')
+    logger.info("======== processEvent_detachEC2 ------")
+    
+    # action_event = message.message_attributes.get('ActionEvent').get('StringValue')
     # dateTimeStr = message.message_attributes.get('DateTime').get('StringValue')
     # userId = message.message_attributes.get('User').get('StringValue')
     # msgId = message.message_attributes.get('EventUUID').get('StringValue')
-    body_json=json.loads(message.body)
+    # body_json=json.loads(message.body)
+    body_json=json.loads(message["body"])
     instances_to_datach=body_json['instanceIds']
     regions=body_json['regions']
 
@@ -446,6 +616,7 @@ def processEvent_detachEC2(message):
     ### usage and cost Compute
     usageCompute(instances_to_datach,regions,dynamodbClient,userId,msgId)  
 
+    detach_EBS_Volume(instances_to_datach,regions)
     releaseInstance(table,instances_to_datach,regions,msgId,dateTimeStr)
 
 
@@ -486,6 +657,7 @@ def calculatePoolAmount(zone):
 
 
 def createEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,eventId,eventTime):
+    logger.info("======== createEC2_Emergency==============")
     lambdaclient = boto3.client('lambda')
     payload = { 
     "pathParameters": { "userid":userId},
@@ -506,12 +678,17 @@ def createEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,eventId,eventT
     Payload=json.dumps(payload))        
 
 def processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,registeredInstances_Running,registeredInstances_Stopped,msgId,dateTimeStr,table,lambdaclient):
+    
+    logger.info("======== processEvent_User_AttachEC2_Emergency ------")
     createEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,msgId,dateTimeStr)
+    
+    
     for item in registeredInstances_Running:
         eventRecord(table,item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
     for item in registeredInstances_Stopped:
         eventRecord(table,item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
-    region=registeredInstances_Stopped[0]['region']['S']
+    
+    region=zone
     
     ec2ids,ec2regions=processPoolItemsToAPIFormat(registeredInstances_Stopped,len(registeredInstances_Stopped))
         
@@ -521,17 +698,19 @@ def processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,app
     attach_EBS_Volume(registeredInstances_Stopped,appIds,region)
     sendEvent_Enlarge_Running_Pool(zone)
         
-    
-
 
 def processEvent_Enlarge_Stopped_Pool(message):
     logger.info("======== processEvent_Enlarge_Stopped_Pool ------")
 
-    action_event = message.message_attributes.get('ActionEvent').get('StringValue')
+    # action_event = message.message_attributes.get('ActionEvent').get('StringValue')
     lambdaclient=boto3.client('lambda')
-    body_json=json.loads(message.body)
-    logger.info(action_event)
-    logger.info(body_json)
+
+    # body_json=json.loads(message.body)
+    body_json=json.loads(message["body"])
+
+
+    # logger.info(action_event)
+    # logger.info(body_json)
     dateTimeStr = body_json['dateTimeStr']
     userId = body_json['userId']
     msgId = body_json['eventUUID']
@@ -631,9 +810,11 @@ def processEvent_Enlarge_Running_Pool(message):
     queue = sqs.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue')
     logger.info("======== processEvent_Enlarge_Running_Pool ------")
 
-    action_event = message.message_attributes.get('ActionEvent').get('StringValue')
+    # action_event = message.message_attributes.get('ActionEvent').get('StringValue')
     
-    body_json=json.loads(message.body)
+    # body_json=json.loads(message.body)
+    body_json=json.loads(message["body"])
+
 
     dateTimeStr = body_json['dateTimeStr']
     userId = body_json['userId']
@@ -686,29 +867,26 @@ def processEvent_Enlarge_Running_Pool(message):
             createEC2(lambdaclient,body_json['zone'],amount_newLaunch,userId,dateTimeStr,msgId)
 
             ###send Enlarge_Stopped_Pool
-            now_datetime = datetime.datetime.now()
-            dateTimeStr_new = now_datetime.strftime("%Y-%m-%d/%H:%M:%S:%f")
+            sendEvent_Enlarge_Stopped_Pool(body_json['zone'])
+            # now_datetime = datetime.datetime.now()
+            # dateTimeStr_new = now_datetime.strftime("%Y-%m-%d/%H:%M:%S:%f")
             
-            msgId_new=str(uuid.uuid4())
-            parameter = {"zone" : body_json['zone'],'dateTimeStr':dateTimeStr_new,'userId':'HTC_RRTeam','eventUUID':msgId_new}
-            parameterStr = json.dumps(parameter)
+            # msgId_new=str(uuid.uuid4())
+            # parameter = {"zone" : body_json['zone'],'dateTimeStr':dateTimeStr_new,'userId':'HTC_RRTeam','eventUUID':msgId_new}
+            # parameterStr = json.dumps(parameter)
             
-            logger.info("======== parameterStr ------")
-            logger.info(parameterStr)
-            queue.send_message(
-                MessageBody=parameterStr, 
-                MessageAttributes={
-                'ActionEvent': {
-                    'StringValue': 'Enlarge_Stopped_Pool',
-                    'DataType': 'String'
-                    },
-                })
+            # logger.info("======== parameterStr ------")
+            # logger.info(parameterStr)
+            # queue.send_message(
+            #     MessageBody=parameterStr, 
+            #     MessageAttributes={
+            #     'ActionEvent': {
+            #         'StringValue': 'Enlarge_Stopped_Pool',
+            #         'DataType': 'String'
+            #         },
+            #     })
 
             
-                    
-    
-    
-
 
 
 def messageProcess(action_event,message):
@@ -720,7 +898,21 @@ def messageProcess(action_event,message):
         processEvent_Enlarge_Running_Pool(message)
     elif action_event=='Enlarge_Stopped_Pool':
         processEvent_Enlarge_Stopped_Pool(message)
-    
+    elif action_event=='Shrink_Running_Pool':
+        processEvent_Shrink_Running_Pool(message)
+    elif action_event=='Shrink_Stopped_Pool':
+        processEvent_Shrink_Stopped_Pool(message)
+
+
+
+def directlyProcess(event):
+   
+    for record in event['Records']:
+        logger.info("=================record========")
+        logger.info(record)
+        
+        messageProcess(record['messageAttributes']['ActionEvent']['stringValue'],record)
+
 
 def queueProcess(queue):
     logger.info("=================queue========")
@@ -768,47 +960,54 @@ def process(event, context):
     logger.info(event)
     sqs = boto3.client('sqs')
     sqs_Resource = boto3.resource('sqs')
-    ###################### write event Log #######################
-    queue_L1 = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue_L1')
-    queue_L2 = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue_L2')
-    queue_L3 = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue_L3')
-    Level1_Events=['AttachEC2','DetachEC2','Enlarge_Running_Pool']
-    Level2_Events=['Enlarge_Stopped_Pool']
-    Level3_Events=['Shrink_Running_Pool']
-    for record in event['Records']:
-        queue=None
-        if record['messageAttributes']['ActionEvent']['stringValue'] in Level1_Events:
-            queue=queue_L1
-        elif record['messageAttributes']['ActionEvent']['stringValue'] in Level2_Events:
-            queue=queue_L2
-        elif record['messageAttributes']['ActionEvent']['stringValue'] in Level3_Events:
-            queue=queue_L3
+    
+    consumingType='SimpleQueue'
+    if consumingType=='SimpleQueue':
+
+        directlyProcess(event)
+
+    else:
+        ###################### write event Log #######################
+        queue_L1 = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue_L1')
+        queue_L2 = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue_L2')
+        queue_L3 = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue_L3')
+        Level1_Events=['AttachEC2','DetachEC2','Enlarge_Running_Pool']
+        Level2_Events=['Enlarge_Stopped_Pool','Shrink_Running_Pool']
+        Level3_Events=['Shrink_Stopped_Pool']
+        for record in event['Records']:
+            queue=None
+            if record['messageAttributes']['ActionEvent']['stringValue'] in Level1_Events:
+                queue=queue_L1
+            elif record['messageAttributes']['ActionEvent']['stringValue'] in Level2_Events:
+                queue=queue_L2
+            elif record['messageAttributes']['ActionEvent']['stringValue'] in Level3_Events:
+                queue=queue_L3
+                
+            logger.info("===============Send different Level=============")
+            logger.info(record['messageAttributes']['ActionEvent']['stringValue'])
+        
+            queue.send_message(
+                MessageBody=record['body'], 
+                MessageAttributes={
+                'ActionEvent': {
+                    'StringValue': record['messageAttributes']['ActionEvent']['stringValue'],
+                    'DataType': 'String'
+                    },
             
-        logger.info("===============Send different Level=============")
-        logger.info(record['messageAttributes']['ActionEvent']['stringValue'])
-       
-        queue.send_message(
-            MessageBody=record['body'], 
-            MessageAttributes={
-            'ActionEvent': {
-                'StringValue': record['messageAttributes']['ActionEvent']['stringValue'],
-                'DataType': 'String'
-                },
-           
-            })
+                })
 
 
-    ###################### get highest priority unconsumed message in Log ###########
+        ###################### get highest priority unconsumed message in Log ###########
 
 
 
-    logger.info("=============== begin to process queue =============")
-    # queue_L1 = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue_L1')
-    queueProcess(queue_L1)
-    # queue_L2 = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue_L2')
-    queueProcess(queue_L2)
-    # queue_L3 = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue_L3')
-    queueProcess(queue_L3)
+        logger.info("=============== begin to process queue =============")
+        # queue_L1 = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue_L1')
+        queueProcess(queue_L1)
+        # queue_L2 = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue_L2')
+        queueProcess(queue_L2)
+        # queue_L3 = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue_L3')
+        queueProcess(queue_L3)
     
 
 

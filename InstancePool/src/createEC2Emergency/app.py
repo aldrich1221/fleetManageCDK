@@ -54,6 +54,9 @@ def process(event, context):
     try:
             logger.info(event)
             body=event['body']
+            logger.info("============ process body    =============")
+            logger.info(body)
+      
             body= json.loads(body)
             pathParameters=event['pathParameters']
             
@@ -73,7 +76,8 @@ def process(event, context):
    
     eventId=body['eventId']
     eventTime=body['eventTime']
- 
+    logger.info("============ parameters     =============")
+    logger.info(json_data)
     try:
       dynamodb = boto3.client('dynamodb')
       dynamodb_resource = boto3.resource('dynamodb', region_name=DEFAULTREGION)
@@ -388,7 +392,8 @@ def lambda_handler(event, context):
                                 
                               }]
                                 
-                
+                logger.info("============ json_data     =============")
+                logger.info(json_data)
                 return {
                 'headers':{
                     "Access-Control-Allow-Headers" : "Content-Type",
