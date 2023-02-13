@@ -4,6 +4,7 @@ import json
 import boto3
 import logging
 import boto3
+from boto3.dynamodb.conditions import Key, Attr
 AccessControlAllowOrigin="https://d1wzk0972nk23y.cloudfront.net"
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -70,14 +71,19 @@ def process(event, context):
     except:
         raise CustomError("Please check the parameters.")
     
-    action=pathParameters['actionId']
-
+    # action=pathParameters['actionId']
+    action=body['actionId']
     #########code here
     if action=='listPoolStaticsByZone':
         zone=body['zone']
-
+        sqs_Resource = boto3.resource('sqs')
+    
+    
+        queue = sqs_Resource.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue')
+        QueueMessageNum=len(queue.receive_messages(MessageAttributeNames=['ActionEvent']))
         runningNum,stoppedNum,inUseNum,runningPoolItems,stoppedPoolItems,inUsePoolItems=calculatePoolAmount(zone)
         json_data={
+            'messageNumInQueue':QueueMessageNum,
             'runningNum':runningNum,
             'stoppedNum':stoppedNum,
             'inUseNum':inUseNum,
@@ -89,7 +95,8 @@ def process(event, context):
     elif action=="userCostById":
         StartTime=body['startTime']
         EndTime=body['endTime']
-        
+        userid=body['userId']
+
         dynamodbClient=boto3.client('dynamodb')
 
         # response =dynamodbClient.query(
@@ -108,7 +115,7 @@ def process(event, context):
 
         response = table.query(
             IndexName="userId_datetime_index",
-            KeyConditionExpression=Key('id').eq(1)
+            KeyConditionExpression=Key('userId').eq(userid) & Key('datetime').between(StartTime,EndTime)
         )
 
 

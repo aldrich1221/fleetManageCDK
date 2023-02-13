@@ -17,7 +17,8 @@ def process(event, context):
     try:
             logger.info(event)
             body=event['body']
-            body= json.loads(body)
+            if type(body)!=type(dict()):
+              body= json.loads(body)
             pathParameters=event['pathParameters']
             
             DEFAULTREGION = os.environ['AWS_REGION'] 
@@ -203,12 +204,13 @@ def process(event, context):
             )
             
             response_2=dynamodb.delete_item(TableName='VBS_Instances_Information',Key={'id':{'S':instance_id}})
-            json_data = {"data": [response_1,response_2], 
+            response_3=dynamodb.delete_item(TableName='VBS_Instance_Pool',Key={'instanceId':{'S':instance_id},'region':{'S':REGION}})
+            json_data = {"data": [response_1,response_2,response_3], 
                             "Action":"Deleted",
                             "status":"success",
-                         
                           }
             allresponsedata.append(json_data)
+
       return allresponsedata
 
 

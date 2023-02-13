@@ -85,8 +85,15 @@ export class BasicApiStack extends cdk.Stack {
 
       // const queue = new sqs.Queue(this, 'sqs-queue');
 
-   
-
+          ///////////////////////// Layers ////////////////////////
+          const layer1 = new lambda.LayerVersion(this, 'ip_analysis_layer', {
+            compatibleRuntimes: [
+              lambda.Runtime.PYTHON_3_8,
+              lambda.Runtime.PYTHON_3_9,
+            ],
+            code: lambda.Code.fromAsset(path.join(__dirname,'../../src/layers','ip_analysis.zip')),
+            description: 'multiplies a number by 2',
+          });
           ////////////////////////////////////// user usage table///////////////////////////
           const table2 = new dynamodb.Table(this, 'Table2', { 
             tableName:'VBS_User_UsageAndCost',
@@ -114,6 +121,7 @@ export class BasicApiStack extends cdk.Stack {
       /////////////////////////////////////   Queue  ///////////////////////////
       const queue = new  sqs.Queue(this, 'VBS_Cloud_MessageQueue', {
         queueName: 'VBS_Cloud_MessageQueue',
+        
       });
 
       const queueL1 = new  sqs.Queue(this, 'VBS_Cloud_MessageQueue_L1', {
@@ -127,15 +135,25 @@ export class BasicApiStack extends cdk.Stack {
       });
      
       /////////////////////////////////////   consumer  ///////////////////////////
-      const Function_vbs_message_consumer = new lambda.DockerImageFunction(this, 'Function_vbs_message_consumer',{
-        functionName: 'Function_vbs_message_consumer',
-        code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/consumer'), {
-        cmd: [ "app.lambda_handler" ],
+    //   const Function_vbs_message_consumer = new lambda.DockerImageFunction(this, 'Function_vbs_message_consumer',{
+    //     functionName: 'Function_vbs_message_consumer',
+    //     code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/consumer'), {
+    //     cmd: [ "app.lambda_handler" ],
       
        
-        }),
-        timeout: Duration.seconds(30),
+    //     }),
+    //     timeout: Duration.seconds(30),
+    // });
+
+    const Function_vbs_message_consumer = new lambda.Function(this, 'Function_vbs_message_consumer', {
+      runtime: lambda.Runtime.PYTHON_3_8,
+      handler: 'app.lambda_handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../src/consumer')),
+      functionName:'Function_vbs_message_consumer',
+      timeout: Duration.seconds(30),
+      layers:[layer1]
     });
+
       const Policy_vbs_message_consumer = new iam.PolicyStatement();
       Policy_vbs_message_consumer.addResources("*");
       Policy_vbs_message_consumer.addActions("*");
@@ -145,6 +163,10 @@ export class BasicApiStack extends cdk.Stack {
       Function_vbs_message_consumer.addEventSource(
         new SqsEventSource(queue, {
           batchSize: 1,
+          maxBatchingWindow:Duration.minutes(5),
+          reportBatchItemFailures:true,
+          
+          
         }),
       );
 
@@ -163,7 +185,7 @@ export class BasicApiStack extends cdk.Stack {
       functionName: 'Function_vbs_attach_ec2',
       code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/attachEC2'), {
       cmd: [ "app.lambda_handler" ],
-    
+        
      
       }),
       timeout: Duration.seconds(900),
@@ -328,8 +350,91 @@ export class BasicApiStack extends cdk.Stack {
     Function_vbs_create_ec2_emergency .addToRolePolicy(Policy_vbs_create_ec2_emergency);
   
     
- 
+    //////////////////////////////////Monitor and Cost ////////////////////////
+    // const Function_vbs_monitor_pool = new lambda.Function(this, 'FUNCTION_vbs_monitor_pool', {
+    //   runtime: lambda.Runtime.PYTHON_3_8,
+    //   handler: 'app.lambda_handler',
+    //   code: lambda.Code.fromAsset(path.join(__dirname,'../../src/monitorAndCost')),
+    //   functionName:'FUNCTION_vbs_monitor_pool'
+    // });
 
+    const Function_vbs_monitor_pool = new lambda.Function(this, 'Function_vbs_monitor_pool', {
+      runtime: lambda.Runtime.PYTHON_3_8,
+      handler: 'app.lambda_handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../src/monitorAndCost')),
+      functionName:'Function_vbs_monitor_pool',
+      timeout: Duration.seconds(600),
+      layers:[layer1]
+    });
+
+
+
+
+    const Policy_vbs_monitor_pool = new iam.PolicyStatement();
+    Policy_vbs_monitor_pool.addResources("*");
+    Policy_vbs_monitor_pool.addActions("*");
+    Function_vbs_monitor_pool.addToRolePolicy(Policy_vbs_monitor_pool); 
+    const API_vbs_monitor_pool = new apigateway.LambdaRestApi(this, 'API_vbs_monitor_pool', {
+      handler: Function_vbs_monitor_pool,
+      restApiName:'API_vbs_monitor_pool',
+      proxy: false,
+      integrationOptions: {
+        allowTestInvoke: false,
+          timeout: Duration.seconds(5),
+        },
+      defaultCorsPreflightOptions: { allowOrigins: apigateway.Cors.ALL_ORIGINS },
+    });
+    const API_vbs_monitor_pool_v1 = API_vbs_monitor_pool.root.addResource('v1');
+
+    // API_vbs_unit_Test_v1.addMethod('GET',
+    // new apigateway.LambdaIntegration(Function_vbs_unit_Test, {proxy: true}));
+
+    const Authorizer_vbs_monitor_pool = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_monitor_pool', {
+      handler: Function_vbs_api_authorize,
+      identitySources: [apigateway.IdentitySource.header('authorizationtoken')]
+    });
+    
+    API_vbs_monitor_pool_v1.addMethod('POST',
+    new apigateway.LambdaIntegration(Function_vbs_monitor_pool, {proxy: true}), {
+      authorizer: Authorizer_vbs_monitor_pool
+    });
+ 
+    
+    ////////////////////////////////// unit Test ///////////////////////////
+    const Function_vbs_unit_Test = new lambda.Function(this, 'Function_vbs_unit_Test', {
+      runtime: lambda.Runtime.PYTHON_3_8,
+      handler: 'app.lambda_handler',
+      code: lambda.Code.fromAsset(path.join(__dirname,'../../testing/unitTest')),
+      functionName:'Function_vbs_unit_Test'
+    });
+    const Policy_vbs_unit_Test = new iam.PolicyStatement();
+    Policy_vbs_unit_Test.addResources("*");
+    Policy_vbs_unit_Test.addActions("*");
+    Function_vbs_unit_Test.addToRolePolicy(Policy_vbs_unit_Test); 
+    const API_vbs_unit_Test = new apigateway.LambdaRestApi(this, 'API_vbs_unit_Test', {
+      handler: Function_vbs_unit_Test,
+      restApiName:'API_vbs_unit_Test',
+      proxy: false,
+      integrationOptions: {
+        allowTestInvoke: false,
+          timeout: Duration.seconds(5),
+        },
+      defaultCorsPreflightOptions: { allowOrigins: apigateway.Cors.ALL_ORIGINS },
+    });
+    const API_vbs_unit_Test_v1 = API_vbs_unit_Test.root.addResource('v1');
+
+    // API_vbs_unit_Test_v1.addMethod('GET',
+    // new apigateway.LambdaIntegration(Function_vbs_unit_Test, {proxy: true}));
+
+    const Authorizer_vbs_unit_Test = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_unit_Test', {
+      handler: Function_vbs_api_authorize,
+      identitySources: [apigateway.IdentitySource.header('authorizationtoken')]
+    });
+
+    API_vbs_unit_Test_v1.addMethod('POST',
+    new apigateway.LambdaIntegration(Function_vbs_unit_Test, {proxy: true}), {
+      authorizer: Authorizer_vbs_unit_Test
+    });
 
 
   

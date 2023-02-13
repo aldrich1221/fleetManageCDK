@@ -54,12 +54,21 @@ def process(event, context):
     try:
             logger.info(event)
             body=event['body']
-            body= json.loads(body)
+            logger.info("======== body type------")
+            logger.info(type(body)==type(dict()))
+            if type(body)!=type(dict()):
+              body= json.loads(body)
+            logger.info("======== body ------")
+            logger.info(body)
             pathParameters=event['pathParameters']
             
-
-    except:
-        raise CustomError("Please check the parameters.")
+            logger.info("======== body ------")
+            logger.info(body)
+            logger.info("======== pathParameters ------")
+            logger.info(pathParameters)
+    except Exception as e:
+        # raise CustomError("Please check the parameters.")
+        raise e
 
     #########code here
     USERID=pathParameters['userid']
@@ -250,7 +259,7 @@ def process(event, context):
             'instanceIp':{'S':publicIP},
             'region':{'S':REGION},
             'zone':{'S':ZONE},
-            'userid':{'S':USERID},
+            'userId':{'S':USERID},
             'instanceStatus':{'S':'running'},
             'eventId':{'S':eventId},
             'eventTime':{'S':eventTime},

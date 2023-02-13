@@ -21,6 +21,16 @@ export class BasicApiStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
+
+    //////////////////  Layers ///////////////////////
+    const layer1 = new lambda.LayerVersion(this, 'ip_analysis_layer', {
+      compatibleRuntimes: [
+        lambda.Runtime.PYTHON_3_8,
+        lambda.Runtime.PYTHON_3_9,
+      ],
+      code: lambda.Code.fromAsset(path.join(__dirname,'../../src/layers','ip_analysis.zip')),
+      description: 'multiplies a number by 2',
+    });
     //////////#API Auth////////////
     const Function_vbs_api_authorize = new lambda.DockerImageFunction(this, 'Function_vbs_api_authorize',{
       functionName: 'Function_vbs_api_authorize_basic',
@@ -31,15 +41,28 @@ export class BasicApiStack extends Stack {
     });
     
     ///////////////////Create EC2////////////////
-    const Function_vbs_create_ec2 = new lambda.DockerImageFunction(this, 'Function_vbs_create_ec2',{
-      functionName: 'Function_vbs_create_ec2',
-      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/createEC2'), {
-      cmd: [ "app.lambda_handler" ],
+
+    //Method1 With Docker Image
+  //   const Function_vbs_create_ec2 = new lambda.DockerImageFunction(this, 'Function_vbs_create_ec2',{
+  //     functionName: 'Function_vbs_create_ec2',
+  //     code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/createEC2'), {
+  //     cmd: [ "app.lambda_handler" ],
     
      
-      }),
-      timeout: Duration.seconds(900),
-  });
+  //     }),
+  //     timeout: Duration.seconds(900),
+  // });
+
+    ///Method2: with layers and zip 
+    const Function_vbs_create_ec2 = new lambda.Function(this, 'Function_vbs_create_ec2', {
+      runtime: lambda.Runtime.PYTHON_3_8,
+      handler: 'app.lambda_handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../src/createEC2')),
+      functionName:'Function_vbs_create_ec2',
+      timeout: Duration.seconds(600),
+      layers:[layer1]
+    });
+
 
     const Policy_vbs_create_ec2 = new iam.PolicyStatement();
     Policy_vbs_create_ec2.addResources("*");
