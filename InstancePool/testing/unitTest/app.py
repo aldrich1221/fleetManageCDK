@@ -148,10 +148,19 @@ def process(event, context):
     #########code here
     ############# Enlarge Running Pool #####################
     
-    # unitTest_Enlarge_Running_Pool('ap-east-1')
-    unitTest_Enlarge_Stopped_Pool('ap-east-1')
-    # unitTest_Shrink_Stopped_Pool('ap-east-1')
-    # unitTest_Shrink_Running_Pool('ap-east-1')
+    if body['action']=='1':
+        
+        unitTest_Enlarge_Running_Pool('ap-east-1')
+    elif body['action']=='2':
+        
+        unitTest_Enlarge_Stopped_Pool('ap-east-1')
+    elif body['action']=='3':
+        unitTest_Shrink_Running_Pool('ap-east-1')
+    elif body['action']=='4':
+        unitTest_Shrink_Stopped_Pool('ap-east-1')
+    elif body['action']=='5':
+        unitTest_DetachEC2()
+    
 
 
 

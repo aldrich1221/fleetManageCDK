@@ -268,7 +268,7 @@ def processEvent_Shrink_Running_Pool(message):
             ec2ids,ec2regions=processPoolItemsToAPIFormat(runningPoolItems,runningNum-runningThreshold)
             deleteEC2(lambdaclient,ec2ids,ec2regions)
             sendEvent_Shrink_Stopped_Pool(zone)
-    
+
         else:
             # ##To Stop
             # total=runningNum-runningThreshold
@@ -306,13 +306,25 @@ def processEvent_Shrink_Stopped_Pool(message):
 
     if stoppedNum>stoppedThreshold:
         if runningNum<runningThreshold:
-            ##send
-            ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum-stoppedThreshold)
-            startEC2(lambdaclient,ec2ids,ec2regions)
-            sendEvent_Enlarge_Running_Pool(zone)
+            if stoppedNum-stoppedThreshold>runningThreshold-runningNum:
+                ##send
+                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,runningThreshold-runningNum)
+                startEC2(lambdaclient,ec2ids,ec2regions)
+
+                deleteNumber=stoppedNum-stoppedThreshold-(runningThreshold-runningNum)
+                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,runningThreshold-runningNum)
+                deleteEC2(lambdaclient,ec2ids,ec2regions)
+                
+            else:
+                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum-stoppedThreshold)
+                startEC2(lambdaclient,ec2ids,ec2regions)
+                sendEvent_Enlarge_Running_Pool(zone)
+
         else:
+            
             ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum-stoppedThreshold)
             deleteEC2(lambdaclient,ec2ids,ec2regions)
+            sendEvent_Shrink_Running_Pool(zone)
     else:
         checkProcessEventStatus(zone)
 
