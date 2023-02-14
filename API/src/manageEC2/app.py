@@ -88,9 +88,10 @@ def process(event, context):
                                 'region':REGION
                                
                             },
-                            UpdateExpression="set instanceStatus = :r",
+                            UpdateExpression="set instanceStatus = :r ,instanceIp = :p",
                             ExpressionAttributeValues={
                                 ':r': 'stopped',
+                                ':p': '',
                             },
                             ReturnValues="UPDATED_NEW"
                         )
@@ -181,9 +182,10 @@ def process(event, context):
                                 'region':REGION
                                
                             },
-                            UpdateExpression="set instanceStatus = :r",
+                            UpdateExpression="set instanceStatus = :r, instanceIp = :p",
                             ExpressionAttributeValues={
                                 ':r': 'running',
+                                ':p':publicIP
                             },
                             ReturnValues="UPDATED_NEW"
                         )

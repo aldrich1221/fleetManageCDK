@@ -127,8 +127,15 @@ def process(event, context):
         if availableInstanceCount==amount:
             break
         whileCount=whileCount+1
-        if whileCount>10:
-            raise CustomError("Error-From while Loop")
+        if whileCount>4:
+            # raise CustomError("Error-From while Loop")
+            
+            waitForInfo = {"zone" : regionId,'amount':amount,'appIds':appIds,'dateTimeStr':dateTimeStr,'userId':userId,'eventUUID':msgId,'eventName':'AttachEC2'}
+            attachEC2Response={
+                'processingStatus':'doing',
+                'data':waitForInfo
+            }
+            return attachEC2Response
             
     
     ##################### return the available instances #######################
@@ -149,9 +156,13 @@ def process(event, context):
                     },
                     ReturnValues="UPDATED_NEW"
                 )
-    return availableInstances
+    attachEC2Response={
+                'processingStatus':'done',
+                'data':availableInstances
+            }
+    return attachEC2Response
     ###########code here
-    return "good"
+    
 def lambda_handler(event, context):
     try:
         if ('body' in event.keys()) & ('pathParameters' in event.keys()):

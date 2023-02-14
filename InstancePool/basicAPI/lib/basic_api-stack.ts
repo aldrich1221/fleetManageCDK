@@ -121,7 +121,8 @@ export class BasicApiStack extends cdk.Stack {
       /////////////////////////////////////   Queue  ///////////////////////////
       const queue = new  sqs.Queue(this, 'VBS_Cloud_MessageQueue', {
         queueName: 'VBS_Cloud_MessageQueue',
-        
+        visibilityTimeout:Duration.seconds(1200),
+        receiveMessageWaitTime:Duration.seconds(0)
       });
 
       const queueL1 = new  sqs.Queue(this, 'VBS_Cloud_MessageQueue_L1', {
@@ -150,7 +151,7 @@ export class BasicApiStack extends cdk.Stack {
       handler: 'app.lambda_handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../src/consumer')),
       functionName:'Function_vbs_message_consumer',
-      timeout: Duration.seconds(30),
+      timeout: Duration.seconds(300),
       layers:[layer1]
     });
 
@@ -163,9 +164,8 @@ export class BasicApiStack extends cdk.Stack {
       Function_vbs_message_consumer.addEventSource(
         new SqsEventSource(queue, {
           batchSize: 1,
-          maxBatchingWindow:Duration.minutes(5),
+          maxBatchingWindow:Duration.seconds(5),
           reportBatchItemFailures:true,
-          
           
         }),
       );
@@ -181,15 +181,26 @@ export class BasicApiStack extends cdk.Stack {
     
 
    /////////////////////////////////////   producer:attach_ec2  ///////////////////////////
-    const Function_vbs_attach_ec2 = new lambda.DockerImageFunction(this, 'Function_vbs_attach_ec2',{
-      functionName: 'Function_vbs_attach_ec2',
-      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/attachEC2'), {
-      cmd: [ "app.lambda_handler" ],
+  //   const Function_vbs_attach_ec2 = new lambda.DockerImageFunction(this, 'Function_vbs_attach_ec2',{
+  //     functionName: 'Function_vbs_attach_ec2',
+  //     code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/attachEC2'), {
+  //     cmd: [ "app.lambda_handler" ],
         
      
-      }),
-      timeout: Duration.seconds(900),
+  //     }),
+  //     timeout: Duration.seconds(900),
+  // });
+
+
+  const Function_vbs_attach_ec2 = new lambda.Function(this, 'Function_vbs_attach_ec2', {
+    runtime: lambda.Runtime.PYTHON_3_8,
+    handler: 'app.lambda_handler',
+    code: lambda.Code.fromAsset(path.join(__dirname, '../../src/attachEC2')),
+    functionName:'Function_vbs_attach_ec2',
+    timeout: Duration.seconds(900),
+    layers:[layer1]
   });
+
 
     const Policy_vbs_attach_ec2 = new iam.PolicyStatement();
     Policy_vbs_attach_ec2.addResources("*");
@@ -434,6 +445,44 @@ export class BasicApiStack extends cdk.Stack {
     API_vbs_unit_Test_v1.addMethod('POST',
     new apigateway.LambdaIntegration(Function_vbs_unit_Test, {proxy: true}), {
       authorizer: Authorizer_vbs_unit_Test
+    });
+
+
+    ////////////////////////////////////////// integration test //////////////////////////////
+    const Function_vbs_integration_test = new lambda.Function(this, 'Function_vbs_integration_test', {
+      runtime: lambda.Runtime.PYTHON_3_8,
+      handler: 'app.lambda_handler',
+      code: lambda.Code.fromAsset(path.join(__dirname,'../../testing/integrationTest')),
+      functionName:'Function_vbs_integration_test',
+      layers:[layer1]
+    });
+    const Policy_vbs_integration_test = new iam.PolicyStatement();
+    Policy_vbs_integration_test.addResources("*");
+    Policy_vbs_integration_test.addActions("*");
+    Function_vbs_integration_test.addToRolePolicy(Policy_vbs_integration_test); 
+    const API_vbs_integration_test = new apigateway.LambdaRestApi(this, 'API_vbs_integration_test', {
+      handler: Function_vbs_integration_test,
+      restApiName:'API_vbs_integration_test',
+      proxy: false,
+      integrationOptions: {
+        allowTestInvoke: false,
+          timeout: Duration.seconds(5),
+        },
+      defaultCorsPreflightOptions: { allowOrigins: apigateway.Cors.ALL_ORIGINS },
+    });
+    const API_vbs_integration_test_v1 = API_vbs_integration_test.root.addResource('v1');
+
+    // API_vbs_unit_Test_v1.addMethod('GET',
+    // new apigateway.LambdaIntegration(Function_vbs_unit_Test, {proxy: true}));
+
+    const Authorizer_vbs_integration_test = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_integration_test', {
+      handler: Function_vbs_api_authorize,
+      identitySources: [apigateway.IdentitySource.header('authorizationtoken')]
+    });
+
+    API_vbs_integration_test_v1.addMethod('POST',
+    new apigateway.LambdaIntegration(Function_vbs_integration_test, {proxy: true}), {
+      authorizer: Authorizer_vbs_integration_test
     });
 
 
