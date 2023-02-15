@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "aws-cdk-lib": "2.59.0",
-    "constructs": "^10.0.0"
+    "constructs": "^10.0.0",
+    "data-pipeline-d2s-cdk": "^0.1.0"
   }
 }
