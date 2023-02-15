@@ -162,10 +162,10 @@ def process(event, context):
           ##################################################################
               
               
-        tag_1 = {"Key": "UserID", "Value": USERID}
+        tag_1 = {"Key": "UserID", "Value": "HTC_RRTeam"}
         # tag_2 = {"Key": "AppID", "Value": AppID}
-        tag_3 = {"Key": "owner", "Value": USERID}
-        tag_4 = {"Key": "Name", "Value": USERID}
+        tag_3 = {"Key": "owner", "Value": "HTC_RRTeam"}
+        tag_4 = {"Key": "Name", "Value": "HTC_RRTeam"}
         # tag_5=  {"Key": "aws:createdBy", "Value": USERID}
        
        

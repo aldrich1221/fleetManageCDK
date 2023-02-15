@@ -454,6 +454,7 @@ export class BasicApiStack extends cdk.Stack {
       handler: 'app.lambda_handler',
       code: lambda.Code.fromAsset(path.join(__dirname,'../../testing/integrationTest')),
       functionName:'Function_vbs_integration_test',
+      timeout: Duration.seconds(600),
       layers:[layer1]
     });
     const Policy_vbs_integration_test = new iam.PolicyStatement();

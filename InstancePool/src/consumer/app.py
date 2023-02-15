@@ -57,6 +57,7 @@ def releaseInstance(dbtable,instanceId,region,msgId,dateTimeStr):
             )
 
 def eventRecord(dbtable,instanceId,zone,msgId,dateTimeStr,userId):
+                   
     response = dbtable.update_item(
                 Key={
                     'instanceId':instanceId,
@@ -286,6 +287,8 @@ def attach_EBS_Volume(finalInstances,appIds,region):
 def processEvent_Shrink_Running_Pool(message):
 
     logger.info("================processEvent_Shrink_Running_Pool----------------")
+    
+    
     lambdaclient=boto3.client('lambda',region_name='us-east-1')
     # action_event = message.message_attributes.get('ActionEvent').get('StringValue')
     # dateTimeStr = message.message_attributes.get('DateTime').get('StringValue')
@@ -300,7 +303,11 @@ def processEvent_Shrink_Running_Pool(message):
     userId = body_json['userId']
     msgId = body_json['eventUUID']
     zone=body_json['zone']
-  
+    processCount=body_json['processCount']
+    logger.info("================processCount----------------")
+    logger.info(processCount)
+    if processCount>6:
+        return
     runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
     if runningNum>runningThreshold: 
         if stoppedNum>=stoppedThreshold:
@@ -309,7 +316,7 @@ def processEvent_Shrink_Running_Pool(message):
             deleteEC2(lambdaclient,ec2ids,ec2regions)
             
             # sendEvent_Shrink_Stopped_Pool(zone)
-            checkProcessEventStatus(zone)
+            checkProcessEventStatus(zone,processCount)
 
         elif stoppedNum<stoppedThreshold:
             logger.info("stopped! +sendEvent_Enlarge_Stopped_Pool")
@@ -326,10 +333,10 @@ def processEvent_Shrink_Running_Pool(message):
             stopEC2(lambdaclient,ec2ids,ec2regions)
 
             # sendEvent_Enlarge_Stopped_Pool(zone)
-            checkProcessEventStatus(zone)
+            checkProcessEventStatus(zone,processCount)
 
     else:
-        checkProcessEventStatus(zone)
+        checkProcessEventStatus(zone,processCount)
 
 def processEvent_Shrink_Stopped_Pool(message):
     logger.info("================processEvent_Shrink_Stopped_Pool----------------")
@@ -346,8 +353,11 @@ def processEvent_Shrink_Stopped_Pool(message):
     userId = body_json['userId']
     msgId = body_json['eventUUID']
     zone=body_json['zone']
-    
-
+    processCount=body_json['processCount']
+    logger.info("================processCount----------------")
+    logger.info(processCount)
+    if processCount>6:
+        return
 
     runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
 
@@ -362,14 +372,14 @@ def processEvent_Shrink_Stopped_Pool(message):
                 ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,runningThreshold-runningNum)
                 deleteEC2(lambdaclient,ec2ids,ec2regions)
 
-                checkProcessEventStatus(zone)
+                checkProcessEventStatus(zone,processCount)
 
             else:
                 ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum-stoppedThreshold)
                 startEC2(lambdaclient,ec2ids,ec2regions)
 
                 # sendEvent_Enlarge_Running_Pool(zone)
-                checkProcessEventStatus(zone)
+                checkProcessEventStatus(zone,processCount)
 
 
         else:
@@ -377,10 +387,10 @@ def processEvent_Shrink_Stopped_Pool(message):
             ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum-stoppedThreshold)
             deleteEC2(lambdaclient,ec2ids,ec2regions)
             # sendEvent_Shrink_Running_Pool(zone)
-            checkProcessEventStatus(zone)
+            checkProcessEventStatus(zone,processCount)
 
     else:
-        checkProcessEventStatus(zone)
+        checkProcessEventStatus(zone,processCount)
 
 
 def processEvent_attachEC2(message):
@@ -403,6 +413,9 @@ def processEvent_attachEC2(message):
     zone=body_json['zone']
     amount=body_json['amount']
     appIds=body_json['appIds']
+    processCount=body_json['processCount']
+    logger.info("================processCount----------------")
+    logger.info(processCount)
     region=''
     send_Enlarge_Running_Pool=False
     send_Enlarge_Stopped_Pool=False
@@ -435,13 +448,15 @@ def processEvent_attachEC2(message):
         logger.info(registorCount_stopped)
         NewFastLaunchEC2Amount=amount-(registorCount_running+registorCount_stopped)
 
-        processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,registeredInstances_Running,registeredInstances_Stopped,msgId,dateTimeStr,table,lambdaclient)
+        processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,registeredInstances_Running,registeredInstances_Stopped,msgId,dateTimeStr,table,lambdaclient,processCount)
        
         # checkProcessEventStatus(zone)
         ###send Emergency
     else:
         alreadyAssignAmount=amount
         for item in registeredInstances_Running:
+            # startEC2ByUser(lambdaclient,item['userId']['S'],item['instanceId']['S'],item['region']['S'])
+    
             eventRecord(table,item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
             finalInstances.append(item)
             region=item['region']['S']
@@ -452,6 +467,7 @@ def processEvent_attachEC2(message):
         if alreadyAssignAmount>0:
             instancestartfromstopped=[]
             for item in registeredInstances_Stopped:
+                # startEC2ByUser(lambdaclient,item['userId']['S'],item['instanceId']['S'],item['region']['S'])
                 eventRecord(table,item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
                 finalInstances.append(item)
                 instancestartfromstopped.append(item)
@@ -459,13 +475,13 @@ def processEvent_attachEC2(message):
                 if alreadyAssignAmount==0:
                     break
             
-            ec2ids,ec2regions=processPoolItemsToAPIFormat(instancestartfromstopped,len(instancestartfromstopped))
-        
-            startEC2(lambdaclient,ec2ids,ec2regions)
+        ec2ids,ec2regions=processPoolItemsToAPIFormat(finalInstances,len(finalInstances))
+    
+        startEC2(lambdaclient,ec2ids,ec2regions)
 
         send_Enlarge_Running_Pool=True     
         attach_EBS_Volume(finalInstances,appIds,region)
-        # checkProcessEventStatus(zone)
+    checkProcessEventStatus(zone,processCount)
         
         
     # elif registorCount_running>=amount:
@@ -489,36 +505,36 @@ def processEvent_attachEC2(message):
     #     send_Enlarge_Running_Pool=True
     #     # send_Enlarge_Stopped_Pool=True
 
-    sqs = boto3.resource('sqs',region_name='us-east-1')
-    queue = sqs.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue')
+    # sqs = boto3.resource('sqs',region_name='us-east-1')
+    # queue = sqs.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue')
     
-    ############### send Enlarge_Running_Pool###################
-    if send_Enlarge_Running_Pool==True:
+    # ############### send Enlarge_Running_Pool###################
+    # if send_Enlarge_Running_Pool==True:
 
-        sendEvent_Enlarge_Running_Pool(zone)
+    #     sendEvent_Enlarge_Running_Pool(zone)
         
-    ################ send Enlarge_Stopped_Pool###################
-    if send_Enlarge_Stopped_Pool==True:
-        now_datetime = datetime.datetime.now()
-        dateTimeStr_new = now_datetime.strftime("%Y-%m-%d/%H:%M:%S:%f")
+    # ################ send Enlarge_Stopped_Pool###################
+    # if send_Enlarge_Stopped_Pool==True:
+    #     now_datetime = datetime.datetime.now()
+    #     dateTimeStr_new = now_datetime.strftime("%Y-%m-%d/%H:%M:%S:%f")
         
-        msgId_new=str(uuid.uuid4())
-        parameter = {"zone" : zone,'dateTimeStr':dateTimeStr_new,'userId':'HTC_RRTeam','eventUUID':msgId_new}
-        parameterStr = json.dumps(parameter)
+    #     msgId_new=str(uuid.uuid4())
+    #     parameter = {"zone" : zone,'dateTimeStr':dateTimeStr_new,'userId':'HTC_RRTeam','eventUUID':msgId_new}
+    #     parameterStr = json.dumps(parameter)
         
-        logger.info("======== parameterStr ------")
-        logger.info(parameterStr)
-        queue.send_message(
-            MessageBody=parameterStr, 
-            MessageAttributes={
-            'ActionEvent': {
-                'StringValue': 'Enlarge_Stopped_Pool',
-                'DataType': 'String'
-                },
-            })
+    #     logger.info("======== parameterStr ------")
+    #     logger.info(parameterStr)
+    #     queue.send_message(
+    #         MessageBody=parameterStr, 
+    #         MessageAttributes={
+    #         'ActionEvent': {
+    #             'StringValue': 'Enlarge_Stopped_Pool',
+    #             'DataType': 'String'
+    #             },
+    #         })
 
 
-def sendEvent_Shrink_Running_Pool(zone):
+def sendEvent_Shrink_Running_Pool(zone,processCount):
     logger.info("======== sendEvent_Shrink_Running_Pool ------")
     
     # sqs = boto3.resource('sqs',region_name='us-east-1')
@@ -543,7 +559,13 @@ def sendEvent_Shrink_Running_Pool(zone):
     dateTimeStr_new = now_datetime.strftime("%Y-%m-%d/%H:%M:%S:%f")
     
     msgId_new=str(uuid.uuid4())
-    parameter = {"zone" : zone,'dateTimeStr':dateTimeStr_new,'userId':'HTC_RRTeam','eventUUID':msgId_new}
+    parameter = {
+        "zone" : zone,
+        'dateTimeStr':dateTimeStr_new,
+        'userId':'HTC_RRTeam',
+        'eventUUID':msgId_new,
+        'processCount':processCount+1
+        }
     parameterStr = json.dumps(parameter)
     
     logger.info("======== parameterStr ------")
@@ -558,7 +580,7 @@ def sendEvent_Shrink_Running_Pool(zone):
             },
         })  
 
-def sendEvent_Shrink_Stopped_Pool(zone):
+def sendEvent_Shrink_Stopped_Pool(zone,processCount):
     # sqs = boto3.resource('sqs',region_name='us-east-1')
     # queue = sqs.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue')
     
@@ -579,7 +601,7 @@ def sendEvent_Shrink_Stopped_Pool(zone):
     dateTimeStr_new = now_datetime.strftime("%Y-%m-%d/%H:%M:%S:%f")
     
     msgId_new=str(uuid.uuid4())
-    parameter = {"zone" : zone,'dateTimeStr':dateTimeStr_new,'userId':'HTC_RRTeam','eventUUID':msgId_new}
+    parameter = {"processCount":processCount+1,"zone" : zone,'dateTimeStr':dateTimeStr_new,'userId':'HTC_RRTeam','eventUUID':msgId_new}
     parameterStr = json.dumps(parameter)
     
     logger.info("======== parameterStr ------")
@@ -594,7 +616,7 @@ def sendEvent_Shrink_Stopped_Pool(zone):
             },
         })  
 
-def sendEvent_Enlarge_Stopped_Pool(zone):
+def sendEvent_Enlarge_Stopped_Pool(zone,processCount):
     logger.info("======== sendEvent_Enlarge_Stopped_Pool ------")
     # sqs = boto3.resource('sqs',region_name='us-east-1')
     
@@ -616,7 +638,7 @@ def sendEvent_Enlarge_Stopped_Pool(zone):
     
     msgId_new=str(uuid.uuid4())
 
-    parameter = {"zone" : zone,'dateTimeStr':dateTimeStr_new,'userId':'HTC_RRTeam','eventUUID':msgId_new}
+    parameter = {"processCount":processCount+1,"zone" : zone,'dateTimeStr':dateTimeStr_new,'userId':'HTC_RRTeam','eventUUID':msgId_new}
     parameterStr = json.dumps(parameter)
     
     logger.info("======== parameterStr ------")
@@ -631,7 +653,7 @@ def sendEvent_Enlarge_Stopped_Pool(zone):
             },
         })  
 
-def sendEvent_Enlarge_Running_Pool(zone):
+def sendEvent_Enlarge_Running_Pool(zone,processCount):
     
     logger.info("========sendEvent_Enlarge_Running_Pool ------")
     # sqs = boto3.resource('sqs',region_name='us-east-1')
@@ -652,7 +674,7 @@ def sendEvent_Enlarge_Running_Pool(zone):
     
     msgId_new=str(uuid.uuid4())
 
-    parameter = {"zone" : zone,'dateTimeStr':dateTimeStr_new,'userId':'HTC_RRTeam','eventUUID':msgId_new}
+    parameter = {"processCount":processCount+1,"zone" : zone,'dateTimeStr':dateTimeStr_new,'userId':'HTC_RRTeam','eventUUID':msgId_new}
     parameterStr = json.dumps(parameter)
     
     logger.info("======== parameterStr ------")
@@ -742,8 +764,10 @@ def processEvent_detachEC2(message):
     dateTimeStr = body_json['dateTimeStr']
     userId = body_json['userId']
     msgId = body_json['eventUUID']
+    processCount=body_json['processCount']
 
-
+    logger.info("================processCount----------------")
+    logger.info(processCount)
     dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
     dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
     table = dynamodb_resource.Table('VBS_Instance_Pool')
@@ -764,7 +788,7 @@ def processEvent_detachEC2(message):
     logger.info("======== processEvent_detachEC2::check pool ------")
     for region in uniqueRegions:
         logger.info(region)
-        checkProcessEventStatus(region)
+        checkProcessEventStatus(region,processCount)
         # sendEvent_Shrink_Running_Pool(region)
 
 
@@ -808,7 +832,7 @@ def calculatePoolAmount(zone):
 
 def createEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,eventId,eventTime):
     logger.info("======== createEC2_Emergency==============")
-    lambdaclient = boto3.client('lambda')
+    lambdaclient = boto3.client('lambda',region_name='us-east-1')
     payload = { 
     "pathParameters": { "userid":userId},
     "body":
@@ -836,8 +860,10 @@ def createEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,eventId,eventT
     
     return response
 
-def processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,registeredInstances_Running,registeredInstances_Stopped,msgId,dateTimeStr,table,lambdaclient):
+def processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,registeredInstances_Running,registeredInstances_Stopped,msgId,dateTimeStr,table,lambdaclient,processCount):
     
+
+    msgId_emergency=str(uuid.uuid4())
     logger.info("======== processEvent_User_AttachEC2_Emergency ------")
     logger.info("======== processEvent_User_AttachEC2_Emergency :createEC2_Emergency ------")
     logger.info("NewFastLaunchEC2Amount")
@@ -854,9 +880,14 @@ def processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,app
     region=zone
     
     logger.info("======== processEvent_User_AttachEC2_Emergency :startec2 ------")
-    ec2ids,ec2regions=processPoolItemsToAPIFormat(registeredInstances_Stopped,len(registeredInstances_Stopped))
-        
+
+    ec2ids,ec2regions=processPoolItemsToAPIFormat(registeredInstances_Stopped,len(registeredInstances_Stopped))    
     startEC2(lambdaclient,ec2ids,ec2regions)
+
+    ec2ids,ec2regions=processPoolItemsToAPIFormat(registeredInstances_Running,len(registeredInstances_Running))    
+    startEC2(lambdaclient,ec2ids,ec2regions)
+
+
 
     logger.info("======== processEvent_User_AttachEC2_Emergency :attachEBS ------")
     logger.info(registeredInstances_Running)
@@ -868,8 +899,8 @@ def processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,app
     
     
     logger.info("======== processEvent_User_AttachEC2_Emergency :create new instance for stand-by ------")
-    createEC2(lambdaclient,zone,stoppedThreshold+runningThreshold,'HTC_RRTeam',dateTimeStr,msgId)
-    sendEvent_Enlarge_Running_Pool(zone)
+    createEC2(lambdaclient,zone,stoppedThreshold+runningThreshold,'HTC_RRTeam',dateTimeStr,msgId_emergency)
+    sendEvent_Enlarge_Running_Pool(zone,processCount)
         
 
 def processEvent_Enlarge_Stopped_Pool(message):
@@ -888,6 +919,12 @@ def processEvent_Enlarge_Stopped_Pool(message):
     userId = body_json['userId']
     msgId = body_json['eventUUID']
     zone=body_json['zone']
+    processCount=body_json['processCount']
+
+    logger.info("================processCount----------------")
+    logger.info(processCount)
+    if processCount>6:
+        return
     runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
     logger.info("======== runningNum ------")
     logger.info(runningNum)
@@ -896,8 +933,8 @@ def processEvent_Enlarge_Stopped_Pool(message):
 
 
     if stoppedNum<stoppedThreshold:
-        if runningNum>=runningThreshold:
-            if runningNum-runningThreshold>=stoppedNum-stoppedThreshold:
+        if runningNum>runningThreshold:
+            if abs(runningNum-runningThreshold)>abs(stoppedNum-stoppedThreshold):
                 stoppedNum=abs(stoppedNum-stoppedThreshold)
                 logger.info("======== processEvent_Enlarge_Stopped_Pool -- StopEC2+sendEvent_Shrink_Running_Pool ------")
                 logger.info(stoppedNum)
@@ -906,7 +943,7 @@ def processEvent_Enlarge_Stopped_Pool(message):
                 stopEC2(lambdaclient,ec2ids,ec2regions)
                 # sendEvent_Shrink_Running_Pool(zone)
 
-                checkProcessEventStatus(zone)
+                checkProcessEventStatus(zone,processCount)
 
             else:
                 stoppingNum=abs(runningNum-runningThreshold)
@@ -919,7 +956,7 @@ def processEvent_Enlarge_Stopped_Pool(message):
                 stopEC2(lambdaclient,ec2ids,ec2regions)
 
                 # sendEvent_Shrink_Running_Pool(zone)
-                checkProcessEventStatus(zone)
+                checkProcessEventStatus(zone,processCount)
 
             
         
@@ -929,10 +966,11 @@ def processEvent_Enlarge_Stopped_Pool(message):
             logger.info(createEC2Number)
             createEC2(lambdaclient,zone,createEC2Number,userId,dateTimeStr,msgId)
             # sendEvent_Enlarge_Running_Pool(zone)
-            checkProcessEventStatus(zone)
+            checkProcessEventStatus(zone,processCount)
 
     else:
-        checkProcessEventStatus(zone)
+        checkProcessEventStatus(zone,processCount)
+
 
 
 def startEC2(lambdaclient,ec2ids,ec2regions):
@@ -964,14 +1002,28 @@ def deleteEC2(lambdaclient,ec2ids,ec2regions):
 
 
 def stopEC2(lambdaclient,ec2ids,ec2regions):
+    dynamodbClient=boto3.client('dynamodb',region_name='us-east-1')
+    finalRegion=[]
+    finalIds=[]
+    for i in range(len(ec2ids)):
+        instancesId=ec2ids[i]
+        response =dynamodbClient.query(
+            TableName='VBS_Instance_Pool',
+            ReturnConsumedCapacity='INDEXES',
+            ScanIndexForward=False, # return results in descending order of sort key
+            KeyConditionExpression='instanceId = :z',
+            ExpressionAttributeValues={":z": {"S": instancesId}}
+            ) 
+        if response['Items'][0]['userId']['S']=='HTC_RRTeam':
+            finalRegion.append(ec2regions[i])
+            finalIds.append(ec2ids[i])
 
-  
     payload = { 
         "pathParameters": { "userid":"HTC_RRTeam",'actionid':'stop'},
         "body":
             { 
-                'ec2ids':ec2ids,
-                'ec2regions':ec2regions
+                'ec2ids':finalIds,
+                'ec2regions':finalRegion
             } 
     } 
     result = lambdaclient.invoke(FunctionName='Function_vbs_manage_ec2',
@@ -979,6 +1031,7 @@ def stopEC2(lambdaclient,ec2ids,ec2regions):
                 Payload=json.dumps(payload))
 
 def createEC2(lambdaclient,zone,amount,userId,dateTimeStr,msgId):
+  
     payload = { 
         "pathParameters": { "userid":"HTC_RRTeam"},
         "body":
@@ -1012,11 +1065,48 @@ def processPoolItemsToAPIFormat(items,amount):
             break
     return ec2ids,ec2regions
 
-def checkProcessEventStatus(zone):
+
+def startEC2ByUser(lambdaclient,userId,ec2id,ec2region):
+    payload = { 
+                        "pathParameters": { "userid":userId,'actionid':'start'},
+                        "body":
+                            { 
+                                'ec2ids':[ec2id],
+                                'ec2regions':[ec2region]
+                            } 
+                    } 
+    lambdaclient.invoke(FunctionName='Function_vbs_manage_ec2',
+                InvocationType='RequestResponse',                                      
+                Payload=json.dumps(payload))
+def FixNoStartingIssueAfterAssignedToUser(zone):
+    dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
+    response =dynamodbClient.query(
+    TableName='VBS_Instance_Pool',
+    IndexName="gsi_zone_available_index",
+    Select='ALL_PROJECTED_ATTRIBUTES',
+    # ConsistentRead=True,
+    ReturnConsumedCapacity='INDEXES',
+    ScanIndexForward=False, # return results in descending order of sort key
+    KeyConditionExpression='gsi_zone = :z And available= :y',
+    ExpressionAttributeValues={":z": {"S": zone},":y": {"S": "true"}}
+    )   
+    lambdaclient = boto3.client('lambda',region_name='us-east-1')
+    for item in response['Items']:
+        if (item['available']['S']=='true'):
+           if ((item['userId']['S']!='HTC_RRTeam') & (item['userId']['S']!='')):
+                if item['instanceStatus']['S']!='running':
+                    startEC2ByUser(lambdaclient,item['userId']['S'],item['instanceId']['S'],item['region']['S'])
+                   
+       
+
+        
+def checkProcessEventStatus(zone,processCount):
     # Actions=[]
     logger.info("======== checkProcessEventStatus------")
     
     runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
+    # FixNoStartingIssueAfterAssignedToUser(zone)
+
     logger.info(runningNum)
     logger.info(stoppedNum)
     
@@ -1025,20 +1115,20 @@ def checkProcessEventStatus(zone):
     else:
         if runningNum>runningThreshold:
             # Actions.append('Shrink_Running_Pool')
-            sendEvent_Shrink_Running_Pool(zone)
+            sendEvent_Shrink_Running_Pool(zone,processCount)
         elif runningNum<runningThreshold:
             # Actions.append('Enlarge_Running_Pool')
-            sendEvent_Enlarge_Running_Pool(zone)
+            sendEvent_Enlarge_Running_Pool(zone,processCount)
     
     if stoppedNum==stoppedThreshold:
         logger.info("======== Stopped_Pool Good------")
     else:
         if stoppedNum>stoppedThreshold:
             # Actions.append('Shrink_Stopped_Pool')
-            sendEvent_Shrink_Stopped_Pool(zone)
+            sendEvent_Shrink_Stopped_Pool(zone,processCount)
         elif stoppedNum<stoppedThreshold:
             # Actions.append('Enlarge_Stopped_Pool')
-            sendEvent_Enlarge_Stopped_Pool(zone)
+            sendEvent_Enlarge_Stopped_Pool(zone,processCount)
         
         
 def processEvent_Enlarge_Running_Pool(message):
@@ -1056,7 +1146,11 @@ def processEvent_Enlarge_Running_Pool(message):
     userId = body_json['userId']
     msgId = body_json['eventUUID']
     zone=body_json['zone']
-    
+    processCount=body_json['processCount']
+    logger.info("================processCount----------------")
+    logger.info(processCount)
+    if processCount>6:
+        return
     #####################query Pool Instance############
     runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(body_json['zone'])
     lambdaclient = boto3.client('lambda')
@@ -1084,7 +1178,7 @@ def processEvent_Enlarge_Running_Pool(message):
                 amount_newLaunch=abs(abs(diff_stopped)-abs(diff_running))
                 createEC2(lambdaclient,body_json['zone'],amount_newLaunch,userId,dateTimeStr,msgId)
                 
-                checkProcessEventStatus(zone)
+                checkProcessEventStatus(zone,processCount)
 
             else:#### 
                 ####多的stopped 夠補
@@ -1092,7 +1186,7 @@ def processEvent_Enlarge_Running_Pool(message):
                 ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,abs(diff_running))
 
                 startEC2(lambdaclient,ec2ids,ec2regions)
-                checkProcessEventStatus(zone)
+                checkProcessEventStatus(zone,processCount)
 
                   
         else:
@@ -1108,7 +1202,7 @@ def processEvent_Enlarge_Running_Pool(message):
     
             ###send Enlarge_Stopped_Pool
             # sendEvent_Enlarge_Stopped_Pool(body_json['zone'])
-            checkProcessEventStatus(zone)
+            checkProcessEventStatus(zone,processCount)
 
 
 
@@ -1132,7 +1226,7 @@ def processEvent_Enlarge_Running_Pool(message):
             #         },
             #     })
     else:
-        checkProcessEventStatus(zone)
+        checkProcessEventStatus(zone,processCount)
     
 
             

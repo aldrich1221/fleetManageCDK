@@ -47,7 +47,7 @@ def process(event, context):
     logger.info(dateTimeStr)
 
     
-    parameter = {"regions" : regionIds,'instanceIds':instanceIds,'dateTimeStr':dateTimeStr,'userId':userId,'eventUUID':msgId}
+    parameter = {"processCount":0,"regions" : regionIds,'instanceIds':instanceIds,'dateTimeStr':dateTimeStr,'userId':userId,'eventUUID':msgId}
     parameterStr = json.dumps(parameter)
 
     logger.info("======== parameterStr ------")

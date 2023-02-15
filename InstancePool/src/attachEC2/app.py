@@ -14,6 +14,19 @@ class CustomError(Exception):
   pass
 
 
+def startEC2(lambdaclient,ec2ids,ec2regions,userId):
+    payload = { 
+        "pathParameters": { "userid":userId,'actionid':'start'},
+        "body":
+            { 
+                'ec2ids':ec2ids,
+                'ec2regions':ec2regions
+            } 
+    } 
+    lambdaclient.invoke(FunctionName='Function_vbs_manage_ec2',
+                InvocationType='RequestResponse',                                      
+                Payload=json.dumps(payload))
+
 def process(event, context):
     try:
         logger.info(event)
@@ -65,7 +78,7 @@ def process(event, context):
     
    
     
-    parameter = {"zone" : regionId,'amount':amount,'appIds':appIds,'dateTimeStr':dateTimeStr,'userId':userId,'eventUUID':msgId}
+    parameter = {"processCount":0,"zone" : regionId,'amount':amount,'appIds':appIds,'dateTimeStr':dateTimeStr,'userId':userId,'eventUUID':msgId}
     parameterStr = json.dumps(parameter)
 
     logger.info("======== parameterStr ------")
@@ -81,9 +94,10 @@ def process(event, context):
     ################### waiting for ownership############ 
     availableInstances=[]
     whileCount=0
+    lambdaclient = boto3.client('lambda',region_name='us-east-1')
     while(True):
-        time.sleep(6)
-        dynamodbClient = boto3.client('dynamodb')
+        time.sleep(1)
+        dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
         # response =dynamodbClient.query(
         # TableName='VBS_Instance_Pool',
         # IndexName="gsi_zone_available_index",
@@ -105,12 +119,16 @@ def process(event, context):
         KeyConditionExpression='eventId = :z',
         ExpressionAttributeValues={":z": {"S": msgId}}
         )   
+
         logger.info("======== response ------")
-        logger.info(response)
+        if len(response['Items'])>0:
+            
+            logger.info(response)
         availableInstanceCount=0
         availableInstances=[]
         for item in response['Items']:
             if (item['available']['S']=='true') & (item['userId']['S']==userId) & (item['eventId']['S']==msgId):
+
                 newItem={
                     'instanceId':item['instanceId']['S'],
                     'instanceIp':item['instanceIp']['S'],
@@ -120,14 +138,20 @@ def process(event, context):
                     'zone':item['zone']['S'],
                     'region':item['region']['S']
                 }
-                
-                availableInstances.append(newItem)
-                availableInstanceCount=availableInstanceCount+1
+                logger.info("======== item['instanceIp']['S'] ------")
+                logger.info(item['instanceIp']['S'])
+                logger.info(item['instanceIp']['S']!='')
+                if item['instanceIp']['S']!='':
+                    availableInstances.append(newItem)
+                    availableInstanceCount=availableInstanceCount+1
+                # else:
+                    
+                #     startEC2(lambdaclient,[item['instanceId']['S']],[item['region']['S']],userId)
 
         if availableInstanceCount==amount:
             break
         whileCount=whileCount+1
-        if whileCount>4:
+        if whileCount>20:
             # raise CustomError("Error-From while Loop")
             
             waitForInfo = {"zone" : regionId,'amount':amount,'appIds':appIds,'dateTimeStr':dateTimeStr,'userId':userId,'eventUUID':msgId,'eventName':'AttachEC2'}
