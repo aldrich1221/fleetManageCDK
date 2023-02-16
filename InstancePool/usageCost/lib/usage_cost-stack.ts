@@ -85,7 +85,7 @@ export class UsageCostStack extends Stack {
     const throughputRatio=0.8
     const resizeClusterBeforeRunning = true
     const period={
-      value: 6,
+      value: 15,
       format: 'Minute'
     }
     const emrTerminateAfter={
@@ -97,12 +97,12 @@ export class UsageCostStack extends Stack {
     const failureAndRerunMode ="CASCADE"
 
 
-    const dataPipelineDefaultRole = new iam.Role(this, 'dataPipelineDefaultRole', {
-      assumedBy: new iam.CompositePrincipal(
-        new iam.ServicePrincipal('datapipeline.amazonaws.com'),
-        new iam.ServicePrincipal('elasticmapreduce.amazonaws.com'),
-      ),
-    })
+    // const dataPipelineDefaultRole = new iam.Role(this, 'dataPipelineDefaultRole', {
+    //   assumedBy: new iam.CompositePrincipal(
+    //     new iam.ServicePrincipal('datapipeline.amazonaws.com'),
+    //     new iam.ServicePrincipal('elasticmapreduce.amazonaws.com'),
+    //   ),
+    // })
 
     // const Policy_vbs_datapipeline = new iam.PolicyStatement();
     // Policy_vbs_datapipeline .addResources("*");
@@ -113,19 +113,19 @@ export class UsageCostStack extends Stack {
     // dataPipelineDefaultRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSDataPipelineRole'))
 
 
-    const dataPipelineDefaultResourceRole = new iam.Role(this, 'dataPipelineDefaultResourceRole', {
-      assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
-    })
+    // const dataPipelineDefaultResourceRole = new iam.Role(this, 'dataPipelineDefaultResourceRole', {
+    //   assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+    // })
     // dataPipelineDefaultResourceRole.addManagedPolicy(
     //   iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonEC2RoleforDataPipelineRole'),
     // )
 
 
 
-    new iam.CfnInstanceProfile(this, 'dataPipelineDefaultResourceRoleInstanceProfile', {
-      roles: [dataPipelineDefaultResourceRole.roleName],
-      instanceProfileName: dataPipelineDefaultResourceRole.roleName,
-    })
+    // new iam.CfnInstanceProfile(this, 'dataPipelineDefaultResourceRoleInstanceProfile', {
+    //   roles: [dataPipelineDefaultResourceRole.roleName],
+    //   instanceProfileName: dataPipelineDefaultResourceRole.roleName,
+    // })
     new datapipeline.CfnPipeline(this, pipelineid, {
       name: id,
       parameterObjects: [],
@@ -244,14 +244,14 @@ export class UsageCostStack extends Stack {
               key: 'failureAndRerunMode',
               stringValue: failureAndRerunMode,
             },
-            {
-              key: 'role',
-              stringValue: dataPipelineDefaultRole.roleName,
-            },
-            {
-              key: 'resourceRole',
-              stringValue: dataPipelineDefaultResourceRole.roleName,
-            },
+            // {
+            //   key: 'role',
+            //   stringValue: dataPipelineDefaultRole.roleName,
+            // },
+            // {
+            //   key: 'resourceRole',
+            //   stringValue: dataPipelineDefaultResourceRole.roleName,
+            // },
             {
               key: 'schedule',
               refValue: 'DefaultSchedule',

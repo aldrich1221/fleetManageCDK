@@ -308,7 +308,8 @@ def processEvent_Shrink_Running_Pool(message):
     logger.info(processCount)
     if processCount>6:
         return
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
+    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(zone)
     if runningNum>runningThreshold: 
         if stoppedNum>=stoppedThreshold:
             logger.info("delete!+sendEvent_Shrink_Stopped_Pool")
@@ -359,8 +360,8 @@ def processEvent_Shrink_Stopped_Pool(message):
     if processCount>6:
         return
 
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
-
+    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(zone)
     if stoppedNum>stoppedThreshold:
         if runningNum<runningThreshold:
             if stoppedNum-stoppedThreshold>runningThreshold-runningNum:
@@ -423,8 +424,8 @@ def processEvent_attachEC2(message):
     dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
     lambdaclient=boto3.client('lambda',region_name='us-east-1')
    
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
-
+    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(zone)
     
 
     ################ query the pool info and claim ownership##########################
@@ -829,6 +830,53 @@ def calculatePoolAmount(zone):
 
 
 
+def calculatePoolAmount_DoubleCheck(zone):
+    
+    logger.info("========calculatePoolAmount ------")
+    dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
+    ec2Client = boto3.client('ec2',region_name=zone)
+    response =dynamodbClient.query(
+    TableName='VBS_Instance_Pool',
+    IndexName="gsi_zone_available_index",
+    Select='ALL_PROJECTED_ATTRIBUTES',
+    # ConsistentRead=True,
+    ReturnConsumedCapacity='INDEXES',
+    ScanIndexForward=False, # return results in descending order of sort key
+    KeyConditionExpression='gsi_zone = :z And available= :y',
+    ExpressionAttributeValues={":z": {"S": zone},":y": {"S": "true"}}
+    )   
+    registorCount_running=0
+    registorCount_stopped=0
+    
+    running_standby_instanceItems=[]
+    stopped_standby_instanceItems=[]
+    for item in response['Items']:
+        if (item['available']['S']=='true') & \
+           ((item['userId']['S']=='HTC_RRTeam') or (item['userId']['S']=='')):
+            region=item['region']['S']
+            status=item['instanceStatus']['S']
+            
+            response_describe = ec2Client.describe_instances(
+
+                                InstanceIds=[
+                                   item['instanceId']['S'],
+                                ],
+                            
+                            )
+            stateFromAWS=response_describe['Reservations'][0]['Instances'][0]['State']['Name']
+            if status=='running':
+                if stateFromAWS=='running':
+                    registorCount_running=registorCount_running+1
+                    running_standby_instanceItems.append(item)
+               
+            elif status=='stopped':
+                if stateFromAWS=='stopped':
+                    registorCount_stopped=registorCount_stopped+1
+                    stopped_standby_instanceItems.append(item)
+        
+    return registorCount_running,registorCount_stopped,running_standby_instanceItems,stopped_standby_instanceItems
+
+
 
 def createEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,eventId,eventTime):
     logger.info("======== createEC2_Emergency==============")
@@ -925,7 +973,8 @@ def processEvent_Enlarge_Stopped_Pool(message):
     logger.info(processCount)
     if processCount>6:
         return
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
+    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(zone)
     logger.info("======== runningNum ------")
     logger.info(runningNum)
     logger.info("======== stoppedNum ------")
@@ -990,7 +1039,24 @@ def startEC2(lambdaclient,ec2ids,ec2regions):
 def deleteEC2(lambdaclient,ec2ids,ec2regions):
 
     dynamodb = boto3.client('dynamodb',region_name='us-east-1')
+    dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
+    table = dynamodb_resource.Table('VBS_Instance_Pool')
+  
     for i in range(len(ec2ids)):
+
+        response = table.update_item(
+                Key={
+                    'instanceId':ec2ids[i],
+                    'region':ec2regions[i]
+                },
+                UpdateExpression="set userId = :c , available = :d ",
+                ExpressionAttributeValues={
+                  
+                    ':c': 'HTC_RRTeam_toDelete',
+                    ':d': 'false',
+                },
+                ReturnValues="UPDATED_NEW"
+            )
         response_3=dynamodb.delete_item(TableName='VBS_Instance_Pool',Key={'instanceId':{'S':ec2ids[i]},'region':{'S':ec2regions[i]}})
     payload = { 
         "pathParameters": { "userid":"HTC_RRTeam",'actionid':'delete'},
@@ -1108,7 +1174,8 @@ def checkProcessEventStatus(zone,processCount):
     # Actions=[]
     logger.info("======== checkProcessEventStatus------")
     
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
+    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(zone)
     # FixNoStartingIssueAfterAssignedToUser(zone)
 
     logger.info(runningNum)
@@ -1156,7 +1223,8 @@ def processEvent_Enlarge_Running_Pool(message):
     if processCount>6:
         return
     #####################query Pool Instance############
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(body_json['zone'])
+    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(body_json['zone'])
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(body_json['zone'])
     lambdaclient = boto3.client('lambda')
     diff_running=runningNum-runningThreshold   
     diff_stopped=stoppedNum-stoppedThreshold
