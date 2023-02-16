@@ -14,6 +14,51 @@ class CustomError(Exception):
   pass
 
 
+def sendEvent_Check_Booked_Instance(waitForInfo):
+   
+    logger.info("======== sendEvent_Check_Booked_Instance ------")
+    
+    # sqs = boto3.resource('sqs',region_name='us-east-1')
+    
+    
+    # queue = sqs.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue')
+    client = boto3.client('sqs',region_name='us-east-1')
+    response = client.get_queue_url(
+    QueueName='VBS_Cloud_MessageQueue',
+    # QueueOwnerAWSAccountId='string'
+    )
+    logger.info("======== response ------")
+    logger.info(response)
+    
+    sqs = boto3.resource('sqs',region_name='us-east-1')
+    queue = sqs.Queue(response['QueueUrl'])
+    
+    now_datetime = datetime.datetime.now()
+    dateTimeStr_new = now_datetime.strftime("%Y-%m-%d/%H:%M:%S:%f")
+    
+    msgId_new=str(uuid.uuid4())
+    parameter = {
+        "zone" : waitForInfo["zone"],
+        'dateTimeStr':waitForInfo["dateTimeStr"],
+        'userId':waitForInfo['userId'],
+        'eventUUID':msgId_new,
+        'processCount':0,
+        'toCheckEventId':waitForInfo['eventUUID']
+        }
+    parameterStr = json.dumps(parameter)
+    
+    logger.info("======== parameterStr ------")
+    logger.info(parameterStr)
+    queue.send_message(
+        MessageBody=parameterStr, 
+        MessageAttributes={
+        'ActionEvent': {
+            'StringValue': 'Check_Booked_Instance',
+            'DataType': 'String'
+
+            },
+        })  
+
 def startEC2(lambdaclient,ec2ids,ec2regions,userId):
     payload = { 
         "pathParameters": { "userid":userId,'actionid':'start'},
@@ -109,6 +154,10 @@ def process(event, context):
         # ExpressionAttributeValues={":z": {"S": regionId},":y": {"S": "true"}}
         # )   
 
+        dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
+
+        table = dynamodb_resource.Table('VBS_Instance_Pool')
+
         response =dynamodbClient.query(
         TableName='VBS_Instance_Pool',
         IndexName="eventId-index",
@@ -120,15 +169,16 @@ def process(event, context):
         ExpressionAttributeValues={":z": {"S": msgId}}
         )   
 
-        logger.info("======== response ------")
+        logger.info("======== Regiestred instance response ------")
         if len(response['Items'])>0:
             
             logger.info(response)
         availableInstanceCount=0
         availableInstances=[]
         for item in response['Items']:
-            if (item['available']['S']=='true') & (item['userId']['S']==userId) & (item['eventId']['S']==msgId):
-
+            # if (item['available']['S']=='true') & (item['userId']['S']==userId) & (item['eventId']['S']==msgId):
+            if (item['userId']['S']==userId) & (item['eventId']['S']==msgId):
+                
                 newItem={
                     'instanceId':item['instanceId']['S'],
                     'instanceIp':item['instanceIp']['S'],
@@ -138,6 +188,19 @@ def process(event, context):
                     'zone':item['zone']['S'],
                     'region':item['region']['S']
                 }
+
+                response = table.update_item(
+                    Key={
+                        'instanceId':item['instanceId']['S'],
+                        'region':item['region']['S'],
+                    },
+                    UpdateExpression="set available = :r , eventId = :q",
+                    ExpressionAttributeValues={
+                        ':r': 'false',  
+                        ':q': item['eventId']['S'],
+                    },
+                    ReturnValues="UPDATED_NEW"
+                )
                 logger.info("======== item['instanceIp']['S'] ------")
                 logger.info(item['instanceIp']['S'])
                 logger.info(item['instanceIp']['S']!='')
@@ -159,27 +222,18 @@ def process(event, context):
                 'processingStatus':'doing',
                 'data':waitForInfo
             }
+
+            # sendEvent_Check_Booked_Instance(waitForInfo)
+
+
             return attachEC2Response
             
     
     ##################### return the available instances #######################
     #######update the available to false and return available instances 
-    dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
 
-    table = dynamodb_resource.Table('VBS_Instance_Pool')
-    for item in availableInstances:
 
-        response = table.update_item(
-                    Key={
-                        'instanceId':item['instanceId'],
-                        'region':item['region'],
-                    },
-                    UpdateExpression="set available = :r",
-                    ExpressionAttributeValues={
-                        ':r': 'false',  
-                    },
-                    ReturnValues="UPDATED_NEW"
-                )
+       
     attachEC2Response={
                 'processingStatus':'done',
                 'data':availableInstances

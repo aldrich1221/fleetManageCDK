@@ -125,12 +125,15 @@ def queryInstanceByEventId(eventId,userId,amount):
                 #     availableInstances.append(newItem)
                 #     availableInstanceCount=availableInstanceCount+1
                     
-                if item['instanceIp']['S']!='':
+                # if item['instanceIp']['S']!='':
+                if True:
                     availableInstances.append(newItem)
                     availableInstanceCount=availableInstanceCount+1
-                else:
+
+                
+                # else:
                     
-                    startEC2(lambdaclient,[item['instanceId']['S']],[item['region']['S']],userId)
+                #     startEC2(lambdaclient,[item['instanceId']['S']],[item['region']['S']],userId)
         if availableInstanceCount==amount:
             break
         whileCount=whileCount+1
@@ -214,14 +217,20 @@ def integrationTest_singleRegion_random(regionId,body):
     for i in range(tries):
         allRequestInstanceNums.append(random.randint(1,maxInstancesPerReq))
 
-    allRequestInstanceNums_toAttach=allRequestInstanceNums
-    allRequestInstanceNums_toDetach=allRequestInstanceNums
+    allRequestInstanceNums_toAttach=allRequestInstanceNums.copy()
+    allRequestInstanceNums_toDetach=allRequestInstanceNums.copy()
 
     
 
     random.shuffle(allRequestInstanceNums_toAttach)
     random.shuffle(allRequestInstanceNums_toDetach)
 
+
+    logger.info("======================================= allRequestInstanceNums_toAttach ---------------------------")
+    logger.info(allRequestInstanceNums_toAttach)
+
+    logger.info("======================================= allRequestInstanceNums_toDetach ---------------------------")
+    logger.info(allRequestInstanceNums_toDetach)
 
     # ####
     # allRequestInstanceNums_toAttach=[1,2,3]

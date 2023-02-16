@@ -83,6 +83,7 @@ def process(event, context):
                             },
                             ReturnValues="UPDATED_NEW"
                         )
+                        
           table2 = dynamodb_resource.Table('VBS_Instance_Pool')
           response = table2.update_item(
                             Key={

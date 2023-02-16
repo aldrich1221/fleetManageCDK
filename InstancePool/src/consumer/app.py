@@ -56,21 +56,23 @@ def releaseInstance(dbtable,instanceId,region,msgId,dateTimeStr):
                 ReturnValues="UPDATED_NEW"
             )
 
-def eventRecord(dbtable,instanceId,zone,msgId,dateTimeStr,userId):
-                   
-    response = dbtable.update_item(
-                Key={
-                    'instanceId':instanceId,
-                    'region':zone
-                },
-                UpdateExpression="set eventId = :a ,eventTime = :b , userId = :c ",
-                ExpressionAttributeValues={
-                    ':a': msgId,  
-                    ':b': dateTimeStr,
-                    ':c': userId,
-                },
-                ReturnValues="UPDATED_NEW"
-            )
+def eventRecord(dbtable,available,instanceId,zone,msgId,dateTimeStr,userId):
+    if available=='true':
+        response = dbtable.update_item(
+                    Key={
+                        'instanceId':instanceId,
+                        'region':zone
+                    },
+                    UpdateExpression="set eventId = :a ,eventTime = :b , userId = :c , available = :d",
+                    ExpressionAttributeValues={
+                        ':a': msgId,  
+                        ':b': dateTimeStr,
+                        ':c': userId,
+                        ':d' :'false'
+                        
+                    },
+                    ReturnValues="UPDATED_NEW"
+                )
 
 def detach_EBS_Volume(instanceIds,regions):
 
@@ -423,8 +425,8 @@ def processEvent_attachEC2(message):
     dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
     lambdaclient=boto3.client('lambda',region_name='us-east-1')
    
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
-
+    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(zone)
     
 
     ################ query the pool info and claim ownership##########################
@@ -437,7 +439,7 @@ def processEvent_attachEC2(message):
     registeredInstances_Running=runningPoolItems
     registeredInstances_Stopped=stoppedPoolItems
     
- 
+    
    
     finalInstances=[]
     if registorCount_running+registorCount_stopped<amount:
@@ -457,7 +459,7 @@ def processEvent_attachEC2(message):
         for item in registeredInstances_Running:
             # startEC2ByUser(lambdaclient,item['userId']['S'],item['instanceId']['S'],item['region']['S'])
     
-            eventRecord(table,item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
+            eventRecord(table,item['available']['S'],item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
             finalInstances.append(item)
             region=item['region']['S']
             alreadyAssignAmount=alreadyAssignAmount-1
@@ -468,7 +470,8 @@ def processEvent_attachEC2(message):
             instancestartfromstopped=[]
             for item in registeredInstances_Stopped:
                 # startEC2ByUser(lambdaclient,item['userId']['S'],item['instanceId']['S'],item['region']['S'])
-                eventRecord(table,item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
+             
+                eventRecord(table,item['available']['S'],item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
                 finalInstances.append(item)
                 instancestartfromstopped.append(item)
                 alreadyAssignAmount=alreadyAssignAmount-1
@@ -830,6 +833,57 @@ def calculatePoolAmount(zone):
 
 
 
+
+def calculatePoolAmount_DoubleCheck(zone):
+    
+    logger.info("========calculatePoolAmount ------")
+    dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
+    response =dynamodbClient.query(
+    TableName='VBS_Instance_Pool',
+    IndexName="gsi_zone_available_index",
+    Select='ALL_PROJECTED_ATTRIBUTES',
+    # ConsistentRead=True,
+    ReturnConsumedCapacity='INDEXES',
+    ScanIndexForward=False, # return results in descending order of sort key
+    KeyConditionExpression='gsi_zone = :z And available= :y',
+    ExpressionAttributeValues={":z": {"S": zone},":y": {"S": "true"}}
+    )   
+    registorCount_running=0
+    registorCount_stopped=0
+    
+    running_standby_instanceItems=[]
+    stopped_standby_instanceItems=[]
+
+    ec2 = boto3.client('ec2',region_name=response['Items'][0]['region']['S'])
+              
+   
+    for item in response['Items']:
+        if (item['available']['S']=='true') & \
+           ((item['userId']['S']=='HTC_RRTeam') or (item['userId']['S']=='')):
+            region=item['region']['S']
+            status=item['instanceStatus']['S']
+            instance_status = ec2.describe_instances(
+                InstanceIds=[
+                   item['instanceId']['S']
+                ],
+            )
+            logger.info("======== describe_instance_status==============")
+            logger.info(instance_status['Reservations'][0]['Instances'])
+            statefromAWS=instance_status['Reservations'][0]['Instances'][0]['State']['Name']
+            if status=='running':
+                if statefromAWS=='running':
+                    registorCount_running=registorCount_running+1
+                    running_standby_instanceItems.append(item)
+               
+            elif status=='stopped':
+                if statefromAWS=='stopped':
+                    registorCount_stopped=registorCount_stopped+1
+                    stopped_standby_instanceItems.append(item)
+        
+    return registorCount_running,registorCount_stopped,running_standby_instanceItems,stopped_standby_instanceItems
+
+
+
 def createEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,eventId,eventTime):
     logger.info("======== createEC2_Emergency==============")
     lambdaclient = boto3.client('lambda',region_name='us-east-1')
@@ -845,6 +899,7 @@ def createEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,eventId,eventT
             'appids':appIds,
             'eventId':eventId,
             'eventTime':eventTime,
+            'emergency':True
         } } 
 
     # response=lambdaclient.invoke(FunctionName='Function_vbs_create_ec2_emergency',
@@ -873,9 +928,9 @@ def processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,app
     
     
     for item in registeredInstances_Running:
-        eventRecord(table,item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
+        eventRecord(table,item['available']['S'],item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
     for item in registeredInstances_Stopped:
-        eventRecord(table,item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
+        eventRecord(table,item['available']['S'],item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
     
     region=zone
     
@@ -1044,7 +1099,7 @@ def createEC2(lambdaclient,zone,amount,userId,dateTimeStr,msgId):
                 'appids':[],
                 'eventId':msgId,
                 'eventTime':dateTimeStr,
-
+                'emergency':False
             } } 
 
     result = lambdaclient.invoke(FunctionName='Function_vbs_create_ec2',
@@ -1229,7 +1284,165 @@ def processEvent_Enlarge_Running_Pool(message):
         checkProcessEventStatus(zone,processCount)
     
 
+
+
+def sendEvent_Check_Booked_Instance(waitForInfo):
+   
+    logger.info("======== sendEvent_Check_Booked_Instance ------")
+    
+    # sqs = boto3.resource('sqs',region_name='us-east-1')
+    
+    
+    # queue = sqs.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue')
+    client = boto3.client('sqs',region_name='us-east-1')
+    response = client.get_queue_url(
+    QueueName='VBS_Cloud_MessageQueue',
+    # QueueOwnerAWSAccountId='string'
+    )
+    logger.info("======== response ------")
+    logger.info(response)
+    
+    sqs = boto3.resource('sqs',region_name='us-east-1')
+    queue = sqs.Queue(response['QueueUrl'])
+    
+    now_datetime = datetime.datetime.now()
+    dateTimeStr_new = now_datetime.strftime("%Y-%m-%d/%H:%M:%S:%f")
+    
+    msgId_new=str(uuid.uuid4())
+    parameter = {
+        "zone" : waitForInfo["zone"],
+        'dateTimeStr':waitForInfo["dateTimeStr"],
+        'userId':waitForInfo['userId'],
+        'eventUUID':msgId_new,
+        'processCount':0,
+        'toCheckEventId':waitForInfo['eventUUID']
+        }
+    parameterStr = json.dumps(parameter)
+    
+    logger.info("======== parameterStr ------")
+    logger.info(parameterStr)
+    queue.send_message(
+        MessageBody=parameterStr, 
+        MessageAttributes={
+        'ActionEvent': {
+            'StringValue': 'Check_Booked_Instance',
+            'DataType': 'String'
+
+            },
+        })            
+def processEvent_Check_Booked_Instance(message):
+    logger.info("======== processEvent_Check_Booked_Instance ------")
+    body_json=json.loads(message["body"])
+    
+
+    dateTimeStr = body_json['dateTimeStr']
+    userId = body_json['userId']
+    msgId = body_json['eventUUID']
+    zone=body_json['zone']
+    eventId=body_json['toCheckEventId']
+    amount=body_json['toCheckEventId']
+
+    whileCount=0
+    while(True):
+        time.sleep(2)
+        dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
+        lambdaclient = boto3.client('lambda',region_name='us-east-1')
+        # response =dynamodbClient.query(
+        # TableName='VBS_Instance_Pool',
+        # IndexName="gsi_zone_available_index",
+        # Select='ALL_PROJECTED_ATTRIBUTES',
+        # # ConsistentRead=True,
+        # ReturnConsumedCapacity='INDEXES',
+        # ScanIndexForward=False, # return results in descending order of sort key
+        # KeyConditionExpression='gsi_zone = :z And available= :y',
+        # ExpressionAttributeValues={":z": {"S": regionId},":y": {"S": "true"}}
+        # )   
+
+        response =dynamodbClient.query(
+        TableName='VBS_Instance_Pool',
+        IndexName="eventId-index",
+        Select='ALL_PROJECTED_ATTRIBUTES',
+        # ConsistentRead=True,
+        ReturnConsumedCapacity='INDEXES',
+        ScanIndexForward=False, # return results in descending order of sort key
+        KeyConditionExpression='eventId = :z',
+        ExpressionAttributeValues={":z": {"S": eventId}}
+        )   
+
+        # logger.info("======== response ------")
+        if len(response['Items'])>0:
             
+            logger.info(response)
+            availableInstanceCount=0
+            availableInstances=[]
+            for item in response['Items']:
+                if (item['available']['S']=='true') & (item['userId']['S']==userId) & (item['eventId']['S']==eventId):
+
+                    newItem={
+                        'instanceId':item['instanceId']['S'],
+                        'instanceIp':item['instanceIp']['S'],
+                        'available':item['available']['S'],
+                        'userId':item['userId']['S'],
+                        'eventId':item['eventId']['S'],
+                        'zone':item['zone']['S'],
+                        'region':item['region']['S']
+                    }
+                    logger.info("======== item['instanceIp']['S'] ------")
+                    logger.info(item['instanceIp']['S'])
+                    logger.info(item['instanceIp']['S']!='')
+                    if item['instanceIp']['S']!='':
+                        availableInstances.append(newItem)
+                        availableInstanceCount=availableInstanceCount+1
+                    else:
+                        
+                        startEC2(lambdaclient,[item['instanceId']['S']],[item['region']['S']],userId)
+
+            if availableInstanceCount==amount:
+                break
+            whileCount=whileCount+1
+            if whileCount>200:
+                logger.info("System Error can't launch ec2 for users")
+                break
+        else:
+            sqs = boto3.resource('sqs')
+            queue = sqs.get_queue_by_name(QueueName='VBS_Cloud_MessageQueue')
+
+            now_datetime = datetime.datetime.now()
+            dateTimeStr = now_datetime.strftime("%Y-%m-%d/%H:%M:%S:%f")
+            
+            msgId=msgId
+
+            logger.info("======== msgId ------")
+            logger.info(msgId)
+
+            logger.info("======== dateTimeStr ------")
+            logger.info(dateTimeStr)
+            
+        
+            
+            parameter = {"processCount":0,"zone" : body_json['zone'],'amount':body_json['amount'],'appIds':body_json['appIds'],'dateTimeStr':dateTimeStr,'userId':userId,'eventUUID':eventId}
+            parameterStr = json.dumps(parameter)
+
+            logger.info("======== parameterStr ------")
+            logger.info(parameterStr)
+            queue.send_message(
+                MessageBody=parameterStr, 
+                MessageAttributes={
+                'ActionEvent': {
+                    'StringValue': 'AttachEC2',
+                    'DataType': 'String'
+                    },
+                })
+            waitForInfo = {"zone" : body_json['zone'],'amount':amount,'appIds':body_json['appIds'],'dateTimeStr':dateTimeStr,'userId':userId,'eventUUID':eventId,'eventName':'AttachEC2'}
+            attachEC2Response={
+                'processingStatus':'doing',
+                'data':waitForInfo
+            }
+
+            sendEvent_Check_Booked_Instance(waitForInfo)
+
+            break
+
 
 
 def messageProcess(action_event,message):
@@ -1245,7 +1458,8 @@ def messageProcess(action_event,message):
         processEvent_Shrink_Running_Pool(message)
     elif action_event=='Shrink_Stopped_Pool':
         processEvent_Shrink_Stopped_Pool(message)
-
+    elif action_event=='Check_Booked_Instance':
+        processEvent_Check_Booked_Instance(message)
 
 
 def directlyProcess(event):
@@ -1273,7 +1487,7 @@ def directlyProcess(event):
         logger.info(message.message_id)
         logger.info(message.md5_of_message_attributes)
         logger.info("=================queueMessage:message[1body]========")
-        logger.info(message["body"])
+        logger.info(message.body)
         
         body_json=json.loads(message["body"])
         msgId = body_json['eventUUID']
