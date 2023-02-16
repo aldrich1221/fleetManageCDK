@@ -4,14 +4,15 @@ import * as subs from 'aws-cdk-lib/aws-sns-subscriptions';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
 import * as datapipeline from 'aws-cdk-lib/aws-datapipeline';
-
+import * as cdk from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import {SqsEventSource} from 'aws-cdk-lib/aws-lambda-event-sources';
 
 import * as apigateway from 'aws-cdk-lib/aws-apigateway'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as d2s from 'data-pipeline-d2s-cdk';
+// import * as d2s from 'data-pipeline-d2s-cdk';
+
 export class UsageCostStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
@@ -43,15 +44,49 @@ export class UsageCostStack extends Stack {
     //   },
     // })
 
+    const s3Bucket = new s3.Bucket(this, 's3-bucket', {
+      // bucketName: 'my-bucket',
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      versioned: false,
+      publicReadAccess: false,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      // cors: [
+      //   {
+      //     allowedMethods: [
+      //       s3.HttpMethods.GET,
+      //       s3.HttpMethods.POST,
+      //       s3.HttpMethods.PUT,
+      //     ],
+      //     allowedOrigins: ['http://localhost:3000'],
+      //     allowedHeaders: ['*'],
+      //   },
+      // ],
+      // lifecycleRules: [
+      //   {
+      //     abortIncompleteMultipartUploadAfter: cdk.Duration.days(90),
+      //     expiration: cdk.Duration.days(365),
+      //     transitions: [
+      //       {
+      //         storageClass: s3.StorageClass.INFREQUENT_ACCESS,
+      //         transitionAfter: cdk.Duration.days(30),
+      //       },
+      //     ],
+      //   },
+      // ],
+    });
+
+    // 👇 grant access to bucket
+    // s3Bucket.grantRead(new iam.AccountRootPrincipal());
 
     const pipelineid="VBS_datapipeline"
-    const bucketName="VBS_User_Usage_Records"
-    const tableName="VBS_UserUsage"
+    const bucketName=s3Bucket.bucketName
+    const tableName="VBS_User_UsageAndCost"
     const throughputRatio=0.8
     const resizeClusterBeforeRunning = true
     const period={
-      value: 1,
-      format: 'Hour'
+      value: 6,
+      format: 'Minute'
     }
     const emrTerminateAfter={
       value: 1,
@@ -75,15 +110,15 @@ export class UsageCostStack extends Stack {
     // Function_vbs_message_consumer.addToRolePolicy(Policy_vbs_message_consumer);
     
     // dataPipelineDefaultRole.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSDataPipelineRole'))
-    dataPipelineDefaultRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSDataPipelineRole'))
+    // dataPipelineDefaultRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSDataPipelineRole'))
 
 
     const dataPipelineDefaultResourceRole = new iam.Role(this, 'dataPipelineDefaultResourceRole', {
       assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
     })
-    dataPipelineDefaultResourceRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonEC2RoleforDataPipelineRole'),
-    )
+    // dataPipelineDefaultResourceRole.addManagedPolicy(
+    //   iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonEC2RoleforDataPipelineRole'),
+    // )
 
 
 
