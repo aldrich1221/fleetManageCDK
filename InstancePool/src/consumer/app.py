@@ -988,6 +988,10 @@ def startEC2(lambdaclient,ec2ids,ec2regions):
 
 
 def deleteEC2(lambdaclient,ec2ids,ec2regions):
+
+    dynamodb = boto3.client('dynamodb',region_name='us-east-1')
+    for i in range(len(ec2ids)):
+        response_3=dynamodb.delete_item(TableName='VBS_Instance_Pool',Key={'instanceId':{'S':ec2ids[i]},'region':{'S':ec2regions[i]}})
     payload = { 
         "pathParameters": { "userid":"HTC_RRTeam",'actionid':'delete'},
         "body":
