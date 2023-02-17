@@ -31,12 +31,64 @@ def process(event, context):
         dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 
         table = dynamodb.Table('VBS_User_UsageAndCost')
-        
+
         response = table.query(
                 IndexName="userId_datetime_index",
                 KeyConditionExpression=Key('userId').eq(userid) & Key('datetime').between(StartTime,EndTime)
             )
-        return response
+        
+        totol_time=0
+        MonthDict_time={}
+        DayDict_time={}
+
+        totol_cost=0
+        MonthDict_cost={}
+        DayDict_cost={}
+
+        for item in response['Items']:
+            UsageTime_totalseconds=item['UsageTime_totalseconds']['S']
+            UsageCost=item['UsageCost']['S']
+            
+            datetimeStr=item['datetime']['S']
+            datestr=datetimeStr.split("/")[0]
+            monthstr=datestr.split('-')[0]+"-"+datestr.split('-')[1]
+            
+            totol_time=totol_time+UsageTime_totalseconds
+            totol_cost=totol_cost+UsageCost
+
+            if datestr in DayDict_time.keys():
+                DayDict_time[datestr]=DayDict_time[datestr]+UsageTime_totalseconds
+            else:
+                DayDict_time[datestr]=UsageTime_totalseconds
+
+            if datestr in DayDict_cost.keys():
+                DayDict_cost[datestr]=DayDict_cost[datestr]+UsageCost
+            else:
+                DayDict_cost[datestr]=UsageCost
+
+            
+            if monthstr in MonthDict_time.keys():
+                MonthDict_time[monthstr]=MonthDict_time[monthstr]+UsageTime_totalseconds
+            else:
+                MonthDict_time[monthstr]=UsageTime_totalseconds
+
+            if monthstr in MonthDict_cost.keys():
+                MonthDict_cost[monthstr]=MonthDict_cost[monthstr]+UsageCost
+            else:
+                MonthDict_cost[monthstr]=UsageCost
+
+        responseResult={
+            'total_usage_time':totol_time,
+            'total_usage_cost':totol_cost,
+            'monthly_usage_cost':MonthDict_cost,
+            'monthly_usage_time':MonthDict_time,
+            'daily_usage_cost':DayDict_cost,
+            'daily_usage_time':DayDict_time
+        }
+
+                
+
+        return responseResult
     
     ###########code here
     return "good"

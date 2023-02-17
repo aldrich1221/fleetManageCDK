@@ -59,7 +59,7 @@ export class BasicApiStack extends Stack {
       handler: 'app.lambda_handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../src/createEC2')),
       functionName:'Function_vbs_create_ec2',
-      timeout: Duration.seconds(600),
+      timeout: Duration.seconds(900),
       layers:[layer1]
     });
 
@@ -106,15 +106,26 @@ export class BasicApiStack extends Stack {
     });
 
     ///////////////////Manage EC2////////////////
-    const Function_vbs_manage_ec2 = new lambda.DockerImageFunction(this, 'Function_vbs_manage_ec2',{
-      functionName: 'Function_vbs_manage_ec2',
-      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/manageEC2'), {
-      cmd: [ "app.lambda_handler" ],
+    
+  //   const Function_vbs_manage_ec2 = new lambda.DockerImageFunction(this, 'Function_vbs_manage_ec2',{
+  //     functionName: 'Function_vbs_manage_ec2',
+  //     code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/manageEC2'), {
+  //     cmd: [ "app.lambda_handler" ],
     
      
-      }),
+  //     }),
+  //     timeout: Duration.seconds(900),
+  // });
+
+    const Function_vbs_manage_ec2  = new lambda.Function(this, 'Function_vbs_manage_ec2 ', {
+      runtime: lambda.Runtime.PYTHON_3_8,
+      handler: 'app.lambda_handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../src/manageEC2')),
+      functionName:'Function_vbs_manage_ec2',
       timeout: Duration.seconds(900),
-  });
+      layers:[layer1]
+    });
+
 
     const Policy_vbs_manage_ec2 = new iam.PolicyStatement();
     Policy_vbs_manage_ec2.addResources("*");

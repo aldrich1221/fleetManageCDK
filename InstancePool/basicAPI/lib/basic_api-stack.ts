@@ -487,6 +487,52 @@ export class BasicApiStack extends cdk.Stack {
     });
 
 
+    ///////////////////////////////////////Cost calucalation ////////////////////////////////////////
+
+    const Function_vbs_cost_calculation = new lambda.Function(this, 'Function_vbs_cost_calculation', {
+      runtime: lambda.Runtime.PYTHON_3_8,
+      handler: 'app.lambda_handler',
+      code: lambda.Code.fromAsset(path.join(__dirname,'../../src/costCalculateDynamoDB')),
+      functionName:'Function_vbs_cost_calculation',
+      timeout: Duration.seconds(600),
+      layers:[layer1]
+    });
+
+    const Policy_vbs_cost_calculation = new iam.PolicyStatement();
+    Policy_vbs_cost_calculation.addResources("*");
+    Policy_vbs_cost_calculation.addActions("*");
+    Function_vbs_cost_calculation.addToRolePolicy(Policy_vbs_cost_calculation); 
+    const API_vbs_cost_calculation = new apigateway.LambdaRestApi(this, 'API_vbs_cost_calculation', {
+      handler: Function_vbs_cost_calculation,
+      restApiName:'API_vbs_cost_calculation',
+      proxy: false,
+      integrationOptions: {
+        allowTestInvoke: false,
+          timeout: Duration.seconds(29),
+        },
+      defaultCorsPreflightOptions: { allowOrigins: apigateway.Cors.ALL_ORIGINS },
+    });
+    const API_vbs_cost_calculation_v1 = API_vbs_cost_calculation.root.addResource('v1');
+   
+    const API_vbs_cost_calculation_user = API_vbs_cost_calculation_v1.addResource('user');
+    const API_vbs_cost_calculation_userid = API_vbs_cost_calculation_user.addResource('{userid}');
+    const API_vbs_cost_calculation_action = API_vbs_cost_calculation_userid.addResource('action');
+    const API_vbs_cost_calculation_actionid = API_vbs_cost_calculation_action.addResource('{actionid}');
+
+    // API_vbs_unit_Test_v1.addMethod('GET',
+    // new apigateway.LambdaIntegration(Function_vbs_unit_Test, {proxy: true}));
+
+    const Authorizer_vbs_cost_calculation = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_cost_calculation', {
+      handler: Function_vbs_api_authorize,
+      identitySources: [apigateway.IdentitySource.header('authorizationtoken')]
+    });
+
+    API_vbs_cost_calculation_actionid.addMethod('POST',
+    new apigateway.LambdaIntegration(Function_vbs_cost_calculation, {proxy: true}), {
+      authorizer: Authorizer_vbs_cost_calculation
+    });
+
+
   
 
 

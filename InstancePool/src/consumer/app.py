@@ -57,7 +57,10 @@ def releaseInstance(dbtable,instanceId,region,msgId,dateTimeStr):
             )
 
 def eventRecord(dbtable,instanceId,zone,msgId,dateTimeStr,userId):
-                   
+    logger.info("======================================Now user write eventRecord ---------------------------------------")
+    logger.info("start................................... ")
+    
+    
     response = dbtable.update_item(
                 Key={
                     'instanceId':instanceId,
@@ -71,6 +74,11 @@ def eventRecord(dbtable,instanceId,zone,msgId,dateTimeStr,userId):
                 },
                 ReturnValues="UPDATED_NEW"
             )
+    
+    logger.info(instanceId)
+    logger.info(msgId)
+    logger.info(datetime.datetime.now())        
+    logger.info("................................... End")
 
 def detach_EBS_Volume(instanceIds,regions):
 
@@ -288,6 +296,9 @@ def processEvent_Shrink_Running_Pool(message):
 
     logger.info("================processEvent_Shrink_Running_Pool----------------")
     
+    dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
+    dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
+    table = dynamodb_resource.Table('VBS_Instance_Pool')
     
     lambdaclient=boto3.client('lambda',region_name='us-east-1')
     # action_event = message.message_attributes.get('ActionEvent').get('StringValue')
@@ -306,14 +317,13 @@ def processEvent_Shrink_Running_Pool(message):
     processCount=body_json['processCount']
     logger.info("================processCount----------------")
     logger.info(processCount)
-    if processCount>6:
+    if processCount>10:
         return
-    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(zone)
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
     if runningNum>runningThreshold: 
         if stoppedNum>=stoppedThreshold:
             logger.info("delete!+sendEvent_Shrink_Stopped_Pool")
-            ec2ids,ec2regions=processPoolItemsToAPIFormat(runningPoolItems,runningNum-runningThreshold)
+            ec2ids,ec2regions=processPoolItemsToAPIFormat(runningPoolItems,runningNum-runningThreshold,msgId,dynamodbClient,table)
             deleteEC2(lambdaclient,ec2ids,ec2regions)
             
             # sendEvent_Shrink_Stopped_Pool(zone)
@@ -330,7 +340,7 @@ def processEvent_Shrink_Running_Pool(message):
 
             # ec2ids,ec2regions=processPoolItemsToAPIFormat(runningPoolItems[stopNum:],deleteNum)
             # deleteEC2(lambdaclient,ec2ids,ec2regions)
-            ec2ids,ec2regions=processPoolItemsToAPIFormat(runningPoolItems,runningNum-runningThreshold)
+            ec2ids,ec2regions=processPoolItemsToAPIFormat(runningPoolItems,runningNum-runningThreshold,msgId,dynamodbClient,table)
             stopEC2(lambdaclient,ec2ids,ec2regions)
 
             # sendEvent_Enlarge_Stopped_Pool(zone)
@@ -348,7 +358,11 @@ def processEvent_Shrink_Stopped_Pool(message):
     # msgId = message.message_attributes.get('EventUUID').get('StringValue')
     # body_json=json.loads(message.body)
     body_json=json.loads(message["body"])
-
+    
+    dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
+    dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
+    table = dynamodb_resource.Table('VBS_Instance_Pool')
+    
     logger.info(body_json)
     dateTimeStr = body_json['dateTimeStr']
     userId = body_json['userId']
@@ -357,27 +371,27 @@ def processEvent_Shrink_Stopped_Pool(message):
     processCount=body_json['processCount']
     logger.info("================processCount----------------")
     logger.info(processCount)
-    if processCount>6:
+    if processCount>10:
         return
 
-    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(zone)
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
+
     if stoppedNum>stoppedThreshold:
         if runningNum<runningThreshold:
             if stoppedNum-stoppedThreshold>runningThreshold-runningNum:
                 ##send
-                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,runningThreshold-runningNum)
-                startEC2(lambdaclient,ec2ids,ec2regions)
+                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,runningThreshold-runningNum,msgId,dynamodbClient,table)
+                startEC2(lambdaclient,ec2ids,ec2regions,msgId)
 
                 deleteNumber=stoppedNum-stoppedThreshold-(runningThreshold-runningNum)
-                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,runningThreshold-runningNum)
+                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,runningThreshold-runningNum,msgId,dynamodbClient,table)
                 deleteEC2(lambdaclient,ec2ids,ec2regions)
 
                 checkProcessEventStatus(zone,processCount)
 
             else:
-                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum-stoppedThreshold)
-                startEC2(lambdaclient,ec2ids,ec2regions)
+                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum-stoppedThreshold,msgId,dynamodbClient,table)
+                startEC2(lambdaclient,ec2ids,ec2regions,msgId)
 
                 # sendEvent_Enlarge_Running_Pool(zone)
                 checkProcessEventStatus(zone,processCount)
@@ -385,7 +399,7 @@ def processEvent_Shrink_Stopped_Pool(message):
 
         else:
             
-            ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum-stoppedThreshold)
+            ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum-stoppedThreshold,msgId,dynamodbClient,table)
             deleteEC2(lambdaclient,ec2ids,ec2regions)
             # sendEvent_Shrink_Running_Pool(zone)
             checkProcessEventStatus(zone,processCount)
@@ -424,24 +438,52 @@ def processEvent_attachEC2(message):
     dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
     lambdaclient=boto3.client('lambda',region_name='us-east-1')
    
-    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(zone)
-    
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
 
+    
+    
     ################ query the pool info and claim ownership##########################
+    
     dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
     table = dynamodb_resource.Table('VBS_Instance_Pool')
 
-    registorCount_running=runningNum
-    registorCount_stopped=stoppedNum
 
-    registeredInstances_Running=runningPoolItems
-    registeredInstances_Stopped=stoppedPoolItems
+    ###############with event lock############################
+    registorCount_running=0
+    registorCount_stopped=0
+    registeredInstances_Running=[]
+    registeredInstances_Stopped=[]
+    for item in runningPoolItems:
+        
+        if getLockDataWrite(dynamodbClient,item['instanceId']['S'],msgId):
+            lockDataWrite(item['instanceId']['S'],item['region']['S'],msgId,table)
+            registorCount_running=registorCount_running+1
+            registeredInstances_Running.append(item)
+            
+    
+        
+    for item in stoppedPoolItems:
+        
+        if getLockDataWrite(dynamodbClient,item['instanceId']['S'],msgId):
+            lockDataWrite(item['instanceId']['S'],item['region']['S'],msgId,table)
+            registorCount_stopped=registorCount_stopped+1
+            registeredInstances_Stopped.append(item)
+
+    
+
+    ###############without event lock############################
+    # registorCount_running=runningNum
+    # registorCount_stopped=stoppedNum
+
+    # registeredInstances_Running=runningPoolItems
+    # registeredInstances_Stopped=stoppedPoolItems
     
  
    
     finalInstances=[]
     if registorCount_running+registorCount_stopped<amount:
+        
+        #################Emergency no need to unlock 
         logger.info("======== attach Emergency ------")
         logger.info(amount)
         logger.info("vs")
@@ -450,35 +492,51 @@ def processEvent_attachEC2(message):
         NewFastLaunchEC2Amount=amount-(registorCount_running+registorCount_stopped)
 
         processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,registeredInstances_Running,registeredInstances_Stopped,msgId,dateTimeStr,table,lambdaclient,processCount)
-       
+        
         # checkProcessEventStatus(zone)
         ###send Emergency
     else:
         alreadyAssignAmount=amount
         for item in registeredInstances_Running:
-            # startEC2ByUser(lambdaclient,item['userId']['S'],item['instanceId']['S'],item['region']['S'])
-    
-            eventRecord(table,item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
-            finalInstances.append(item)
-            region=item['region']['S']
-            alreadyAssignAmount=alreadyAssignAmount-1
-            if alreadyAssignAmount==0:
-                break
+            if alreadyAssignAmount>0:
+                # startEC2ByUser(lambdaclient,item['userId']['S'],item['instanceId']['S'],item['region']['S'])
+        
+                eventRecord(table,item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
+                finalInstances.append(item)
+                region=item['region']['S']
+                alreadyAssignAmount=alreadyAssignAmount-1
+                
+            #####將不需要的Instance row unlock
+            else:
+                unLockDataWrite(item['instanceId']['S'],item['region']['S'],table)
+            ##########without lock
+            # if alreadyAssignAmount==0:
+                #     break
+               
             
         if alreadyAssignAmount>0:
             instancestartfromstopped=[]
             for item in registeredInstances_Stopped:
-                # startEC2ByUser(lambdaclient,item['userId']['S'],item['instanceId']['S'],item['region']['S'])
-                eventRecord(table,item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
-                finalInstances.append(item)
-                instancestartfromstopped.append(item)
-                alreadyAssignAmount=alreadyAssignAmount-1
-                if alreadyAssignAmount==0:
-                    break
+                if alreadyAssignAmount>0:
+                    # startEC2ByUser(lambdaclient,item['userId']['S'],item['instanceId']['S'],item['region']['S'])
+                    eventRecord(table,item['instanceId']['S'],item['region']['S'],msgId,dateTimeStr,userId)
+                    finalInstances.append(item)
+                    instancestartfromstopped.append(item)
+                    alreadyAssignAmount=alreadyAssignAmount-1
+                
+                #### with lock
+                else:
+                    unLockDataWrite(item['instanceId']['S'],item['region']['S'],table)
+                # if alreadyAssignAmount==0:
+                #     break
+        else:
+            for item in registeredInstances_Stopped:
+                unLockDataWrite(item['instanceId']['S'],item['region']['S'],table)
             
-        ec2ids,ec2regions=processPoolItemsToAPIFormat(finalInstances,len(finalInstances))
+        ec2ids,ec2regions=processPoolItemsToAPIFormat(finalInstances,len(finalInstances),msgId,dynamodbClient,table)
     
-        startEC2(lambdaclient,ec2ids,ec2regions)
+        # startEC2(lambdaclient,ec2ids,ec2regions)
+        startEC2ByUser(lambdaclient,userId,ec2ids,ec2regions,msgId,True)
 
         send_Enlarge_Running_Pool=True     
         attach_EBS_Volume(finalInstances,appIds,region)
@@ -785,7 +843,10 @@ def processEvent_detachEC2(message):
     for i in range(len(instances_to_datach)):
         if regions[i] not in uniqueRegions:
             uniqueRegions.append(regions[i])
+        
         releaseInstance(table,instances_to_datach[i],regions[i],msgId,dateTimeStr)
+        unLockDataWrite(instances_to_datach[i],regions[i],table)
+    
     logger.info("======== processEvent_detachEC2::check pool ------")
     for region in uniqueRegions:
         logger.info(region)
@@ -830,53 +891,6 @@ def calculatePoolAmount(zone):
 
 
 
-def calculatePoolAmount_DoubleCheck(zone):
-    
-    logger.info("========calculatePoolAmount ------")
-    dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
-    ec2Client = boto3.client('ec2',region_name=zone)
-    response =dynamodbClient.query(
-    TableName='VBS_Instance_Pool',
-    IndexName="gsi_zone_available_index",
-    Select='ALL_PROJECTED_ATTRIBUTES',
-    # ConsistentRead=True,
-    ReturnConsumedCapacity='INDEXES',
-    ScanIndexForward=False, # return results in descending order of sort key
-    KeyConditionExpression='gsi_zone = :z And available= :y',
-    ExpressionAttributeValues={":z": {"S": zone},":y": {"S": "true"}}
-    )   
-    registorCount_running=0
-    registorCount_stopped=0
-    
-    running_standby_instanceItems=[]
-    stopped_standby_instanceItems=[]
-    for item in response['Items']:
-        if (item['available']['S']=='true') & \
-           ((item['userId']['S']=='HTC_RRTeam') or (item['userId']['S']=='')):
-            region=item['region']['S']
-            status=item['instanceStatus']['S']
-            
-            response_describe = ec2Client.describe_instances(
-
-                                InstanceIds=[
-                                   item['instanceId']['S'],
-                                ],
-                            
-                            )
-            stateFromAWS=response_describe['Reservations'][0]['Instances'][0]['State']['Name']
-            if status=='running':
-                if stateFromAWS=='running':
-                    registorCount_running=registorCount_running+1
-                    running_standby_instanceItems.append(item)
-               
-            elif status=='stopped':
-                if stateFromAWS=='stopped':
-                    registorCount_stopped=registorCount_stopped+1
-                    stopped_standby_instanceItems.append(item)
-        
-    return registorCount_running,registorCount_stopped,running_standby_instanceItems,stopped_standby_instanceItems
-
-
 
 def createEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,eventId,eventTime):
     logger.info("======== createEC2_Emergency==============")
@@ -893,6 +907,7 @@ def createEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,eventId,eventT
             'appids':appIds,
             'eventId':eventId,
             'eventTime':eventTime,
+            'emergency':True
         } } 
 
     # response=lambdaclient.invoke(FunctionName='Function_vbs_create_ec2_emergency',
@@ -910,6 +925,7 @@ def createEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,eventId,eventT
 
 def processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,registeredInstances_Running,registeredInstances_Stopped,msgId,dateTimeStr,table,lambdaclient,processCount):
     
+    
 
     msgId_emergency=str(uuid.uuid4())
     logger.info("======== processEvent_User_AttachEC2_Emergency ------")
@@ -918,6 +934,9 @@ def processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,app
     logger.info(NewFastLaunchEC2Amount)
     response_createEC2=createEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,appIds,msgId,dateTimeStr)
     logger.info(response_createEC2)
+    dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
+    dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
+    table = dynamodb_resource.Table('VBS_Instance_Pool')
     
     
     for item in registeredInstances_Running:
@@ -929,11 +948,13 @@ def processEvent_User_AttachEC2_Emergency(userId,zone,NewFastLaunchEC2Amount,app
     
     logger.info("======== processEvent_User_AttachEC2_Emergency :startec2 ------")
 
-    ec2ids,ec2regions=processPoolItemsToAPIFormat(registeredInstances_Stopped,len(registeredInstances_Stopped))    
-    startEC2(lambdaclient,ec2ids,ec2regions)
+    ec2ids,ec2regions=processPoolItemsToAPIFormat(registeredInstances_Stopped,len(registeredInstances_Stopped),msgId,dynamodbClient,table)    
+    # startEC2(lambdaclient,ec2ids,ec2regions)
+    startEC2ByUser(lambdaclient,userId,ec2ids,ec2regions,msgId,True)
 
-    ec2ids,ec2regions=processPoolItemsToAPIFormat(registeredInstances_Running,len(registeredInstances_Running))    
-    startEC2(lambdaclient,ec2ids,ec2regions)
+    ec2ids,ec2regions=processPoolItemsToAPIFormat(registeredInstances_Running,len(registeredInstances_Running),msgId,dynamodbClient,table)    
+    # startEC2(lambdaclient,ec2ids,ec2regions)
+    startEC2ByUser(lambdaclient,userId,ec2ids,ec2regions,msgId,True)
 
 
 
@@ -957,6 +978,10 @@ def processEvent_Enlarge_Stopped_Pool(message):
     # action_event = message.message_attributes.get('ActionEvent').get('StringValue')
     lambdaclient=boto3.client('lambda',region_name='us-east-1')
 
+    dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
+    dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
+    table = dynamodb_resource.Table('VBS_Instance_Pool')
+    
     # body_json=json.loads(message.body)
     body_json=json.loads(message["body"])
 
@@ -971,10 +996,9 @@ def processEvent_Enlarge_Stopped_Pool(message):
 
     logger.info("================processCount----------------")
     logger.info(processCount)
-    if processCount>6:
+    if processCount>10:
         return
-    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(zone)
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
     logger.info("======== runningNum ------")
     logger.info(runningNum)
     logger.info("======== stoppedNum ------")
@@ -987,7 +1011,7 @@ def processEvent_Enlarge_Stopped_Pool(message):
                 stoppedNum=abs(stoppedNum-stoppedThreshold)
                 logger.info("======== processEvent_Enlarge_Stopped_Pool -- StopEC2+sendEvent_Shrink_Running_Pool ------")
                 logger.info(stoppedNum)
-                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum)
+                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum,msgId,dynamodbClient,table)
                 
                 stopEC2(lambdaclient,ec2ids,ec2regions)
                 # sendEvent_Shrink_Running_Pool(zone)
@@ -998,10 +1022,10 @@ def processEvent_Enlarge_Stopped_Pool(message):
                 stoppingNum=abs(runningNum-runningThreshold)
                 logger.info("======== processEvent_Enlarge_Stopped_Pool -- StopEC2+CreateEC2+sendEvent_Shrink_Running_Pool ------")
                 
-                ec2ids,ec2regions=processPoolItemsToAPIFormat(runningPoolItems,stoppingNum)
+                ec2ids,ec2regions=processPoolItemsToAPIFormat(runningPoolItems,stoppingNum,msgId,dynamodbClient,table)
                 createEC2Number=-stoppedNum+stoppedThreshold-stoppedNum
 
-                createEC2(lambdaclient,zone,createEC2Number,userId,dateTimeStr,msgId)
+                createEC2(lambdaclient,zone,createEC2Number,"HTC_RRTeam",dateTimeStr,msgId)
                 stopEC2(lambdaclient,ec2ids,ec2regions)
 
                 # sendEvent_Shrink_Running_Pool(zone)
@@ -1013,7 +1037,7 @@ def processEvent_Enlarge_Stopped_Pool(message):
             createEC2Number=-stoppedNum+stoppedThreshold-runningNum+runningThreshold
             logger.info("======== processEvent_Enlarge_Stopped_Pool --createEC2+sendEvent_Enlarge_Running_Pool ------")
             logger.info(createEC2Number)
-            createEC2(lambdaclient,zone,createEC2Number,userId,dateTimeStr,msgId)
+            createEC2(lambdaclient,zone,createEC2Number,"HTC_RRTeam",dateTimeStr,msgId)
             # sendEvent_Enlarge_Running_Pool(zone)
             checkProcessEventStatus(zone,processCount)
 
@@ -1022,13 +1046,15 @@ def processEvent_Enlarge_Stopped_Pool(message):
 
 
 
-def startEC2(lambdaclient,ec2ids,ec2regions):
+def startEC2(lambdaclient,ec2ids,ec2regions,eventId):
     payload = { 
         "pathParameters": { "userid":"HTC_RRTeam",'actionid':'start'},
         "body":
             { 
                 'ec2ids':ec2ids,
                 'ec2regions':ec2regions
+                'eventId':eventId,
+                'byUser':False
             } 
     } 
     lambdaclient.invoke(FunctionName='Function_vbs_manage_ec2',
@@ -1036,28 +1062,55 @@ def startEC2(lambdaclient,ec2ids,ec2regions):
                 Payload=json.dumps(payload))
 
 
-def deleteEC2(lambdaclient,ec2ids,ec2regions):
-
-    dynamodb = boto3.client('dynamodb',region_name='us-east-1')
-    dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
-    table = dynamodb_resource.Table('VBS_Instance_Pool')
-  
-    for i in range(len(ec2ids)):
-
-        response = table.update_item(
+def lockDataWrite(instanceId,region,eventId,dbtable):
+    
+    response = dbtable.update_item(
                 Key={
-                    'instanceId':ec2ids[i],
-                    'region':ec2regions[i]
+                    'instanceId':instanceId,
+                    'region':region
                 },
-                UpdateExpression="set userId = :c , available = :d ",
+                UpdateExpression="set eventLock = :a",
                 ExpressionAttributeValues={
-                  
-                    ':c': 'HTC_RRTeam_toDelete',
-                    ':d': 'false',
+                    ':a': eventId,  
                 },
                 ReturnValues="UPDATED_NEW"
             )
-        response_3=dynamodb.delete_item(TableName='VBS_Instance_Pool',Key={'instanceId':{'S':ec2ids[i]},'region':{'S':ec2regions[i]}})
+            
+
+
+def unLockDataWrite(instanceId,region,dbtable):
+    
+    response = dbtable.update_item(
+                Key={
+                    'instanceId':instanceId,
+                    'region':region
+                },
+                UpdateExpression="set eventLock = :a",
+                ExpressionAttributeValues={
+                    ':a': '',  
+                },
+                ReturnValues="UPDATED_NEW"
+            )
+
+def getLockDataWrite(dynamodbClient,instancesId,eventId):
+    
+    response =dynamodbClient.query(
+    TableName='VBS_Instance_Pool',
+    ReturnConsumedCapacity='INDEXES',
+    ScanIndexForward=False, # return results in descending order of sort key
+    KeyConditionExpression='instanceId = :z',
+    ExpressionAttributeValues={":z": {"S": instancesId}}
+    ) 
+
+    logger.info("======== usageCompute reponse------")
+    logger.info(response)
+    if (response['Items'][0]['eventLock']['S']=='')or(response['Items'][0]['eventLock']['S']==eventId):
+        return True
+    else:
+        return False
+
+
+def deleteEC2(lambdaclient,ec2ids,ec2regions):
     payload = { 
         "pathParameters": { "userid":"HTC_RRTeam",'actionid':'delete'},
         "body":
@@ -1069,6 +1122,7 @@ def deleteEC2(lambdaclient,ec2ids,ec2regions):
     result = lambdaclient.invoke(FunctionName='Function_vbs_manage_ec2',
                 InvocationType='RequestResponse',                                      
                 Payload=json.dumps(payload))
+    
 
 
 def stopEC2(lambdaclient,ec2ids,ec2regions):
@@ -1112,8 +1166,9 @@ def createEC2(lambdaclient,zone,amount,userId,dateTimeStr,msgId):
                 'spot':False,
                 'amount':amount,
                 'appids':[],
-                'eventId':msgId,
+                'eventId':'',
                 'eventTime':dateTimeStr,
+                'emergency':False
 
             } } 
 
@@ -1121,28 +1176,41 @@ def createEC2(lambdaclient,zone,amount,userId,dateTimeStr,msgId):
                 InvocationType='RequestResponse',                                      
                 Payload=json.dumps(payload))
 
-def processPoolItemsToAPIFormat(items,amount):
+def processPoolItemsToAPIFormat(items,amount,msgId,dynamodbClient,table):
     ec2ids=[]
     ec2regions=[]
     count=0
+    logger.info("================== Start processPoolItemsToAPIFormat ----------------------------")
+    logger.info(msgId)
+    
     for item in items:
         region=item['region']['S']
         instanceId=item['instanceId']['S']
-        ec2ids.append(instanceId)
-        ec2regions.append(region)
-        count=count+1
-        if count==amount:
-            break
+        eventLock=item['eventLock']['S']
+        logger.info("Each instanceId")
+        logger.info(instanceId)
+        logger.info(eventLock)
+        if getLockDataWrite(dynamodbClient,instanceId,msgId):
+            lockDataWrite(instanceId,region,msgId,table)
+            ec2ids.append(instanceId)
+            ec2regions.append(region)
+            count=count+1
+            if count==amount:
+                break
+    logger.info(ec2ids)
+    logger.info("================== End processPoolItemsToAPIFormat ----------------------------")
     return ec2ids,ec2regions
 
 
-def startEC2ByUser(lambdaclient,userId,ec2id,ec2region):
+def startEC2ByUser(lambdaclient,userId,ec2id,ec2region,eventId,byUser):
     payload = { 
                         "pathParameters": { "userid":userId,'actionid':'start'},
                         "body":
                             { 
                                 'ec2ids':[ec2id],
-                                'ec2regions':[ec2region]
+                                'ec2regions':[ec2region],
+                                'eventId':eventId,
+                                'byUser':byUser
                             } 
                     } 
     lambdaclient.invoke(FunctionName='Function_vbs_manage_ec2',
@@ -1167,15 +1235,14 @@ def FixNoStartingIssueAfterAssignedToUser(zone):
                 if item['instanceStatus']['S']!='running':
                     startEC2ByUser(lambdaclient,item['userId']['S'],item['instanceId']['S'],item['region']['S'])
                    
-       
+ 
 
         
 def checkProcessEventStatus(zone,processCount):
     # Actions=[]
     logger.info("======== checkProcessEventStatus------")
     
-    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(zone)
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(zone)
     # FixNoStartingIssueAfterAssignedToUser(zone)
 
     logger.info(runningNum)
@@ -1212,6 +1279,10 @@ def processEvent_Enlarge_Running_Pool(message):
     # body_json=json.loads(message.body)
     body_json=json.loads(message["body"])
     
+    
+    dynamodbClient = boto3.client('dynamodb',region_name='us-east-1')
+    dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
+    table = dynamodb_resource.Table('VBS_Instance_Pool')
 
     dateTimeStr = body_json['dateTimeStr']
     userId = body_json['userId']
@@ -1220,11 +1291,10 @@ def processEvent_Enlarge_Running_Pool(message):
     processCount=body_json['processCount']
     logger.info("================processCount----------------")
     logger.info(processCount)
-    if processCount>6:
+    if processCount>10:
         return
     #####################query Pool Instance############
-    # runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(body_json['zone'])
-    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount_DoubleCheck(body_json['zone'])
+    runningNum,stoppedNum,runningPoolItems,stoppedPoolItems=calculatePoolAmount(body_json['zone'])
     lambdaclient = boto3.client('lambda')
     diff_running=runningNum-runningThreshold   
     diff_stopped=stoppedNum-stoppedThreshold
@@ -1244,9 +1314,9 @@ def processEvent_Enlarge_Running_Pool(message):
                 ###多的stopped 不夠補
                 logger.info("startEC2()+createEC2()")
                 
-                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,abs(diff_stopped))
+                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,abs(diff_stopped),msgId,dynamodbClient,table)
 
-                startEC2(lambdaclient,ec2ids,ec2regions)
+                startEC2(lambdaclient,ec2ids,ec2regions,msgId)
                 amount_newLaunch=abs(abs(diff_stopped)-abs(diff_running))
                 createEC2(lambdaclient,body_json['zone'],amount_newLaunch,userId,dateTimeStr,msgId)
                 
@@ -1255,9 +1325,9 @@ def processEvent_Enlarge_Running_Pool(message):
             else:#### 
                 ####多的stopped 夠補
                 logger.info("startEC2()")
-                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,abs(diff_running))
+                ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,abs(diff_running),msgId,dynamodbClient,table)
 
-                startEC2(lambdaclient,ec2ids,ec2regions)
+                startEC2(lambdaclient,ec2ids,ec2regions,msgId)
                 checkProcessEventStatus(zone,processCount)
 
                   
@@ -1270,7 +1340,7 @@ def processEvent_Enlarge_Running_Pool(message):
             # for i in range(abs(diff_running)+abs(diff_stopped)):
             #     createEC2(lambdaclient,body_json['zone'],1)
             amount_newLaunch=abs(diff_running)+abs(diff_stopped)
-            createEC2(lambdaclient,body_json['zone'],amount_newLaunch,userId,dateTimeStr,msgId)
+            createEC2(lambdaclient,body_json['zone'],amount_newLaunch,"HTC_RRTeam",dateTimeStr,msgId)
     
             ###send Enlarge_Stopped_Pool
             # sendEvent_Enlarge_Stopped_Pool(body_json['zone'])

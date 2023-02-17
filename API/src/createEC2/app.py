@@ -81,6 +81,7 @@ def process(event, context):
     amount=body['amount']  
     eventId=body['eventId']
     eventTime=body['eventTime']
+    emergency=body['emergency']
 
     try:
       dynamodb = boto3.client('dynamodb')
@@ -254,6 +255,10 @@ def process(event, context):
             'publicDnsName':{'S':publicDnsName}
             
           })
+            if emergency==True:
+              eventLock=eventId
+            else:
+              eventLock=''
             response=dynamodb.put_item(TableName='VBS_Instance_Pool', Item={
             'instanceId':{'S':instance_id},
             'instanceIp':{'S':publicIP},
@@ -265,6 +270,7 @@ def process(event, context):
             'eventTime':{'S':eventTime},
             'available':{'S':'true'},
             'gsi_zone':{'S':ZONE},
+            'eventLock':{'S':eventLock}
            
             
           })

@@ -97,6 +97,34 @@ def process(event, context):
                             },
                             ReturnValues="UPDATED_NEW"
                         )
+          
+          state='stopping'
+        
+          while(state=='stopping'):
+            Myec2= ec2.describe_instances()
+        
+            for pythonins in Myec2['Reservations']:
+              for printout in pythonins['Instances']:
+                if printout['InstanceId']==instance_id:
+                    logger.info("============instance_data=============")
+                    logger.info(printout)
+                    if printout['State']['Name']=='stopped':
+                   
+                        state='stopped'
+          response = table2.update_item(
+                            Key={
+                                'instanceId':instance_id,
+                                'region':REGION
+                               
+                            },
+                            UpdateExpression="set instanceStatus = :r ,instanceIp = :p ,eventLock = :q",
+                            ExpressionAttributeValues={
+                                ':r': 'stopped',
+                                ':p': '',
+                                ':q': ''
+                            },
+                            ReturnValues="UPDATED_NEW"
+                        )
           json_data = {"data":  [response_1,response] , 
                             
                             "status":"success",
@@ -125,6 +153,19 @@ def process(event, context):
                 instance_id,
             ]
             )
+            
+
+            response = table2.update_item(
+                            Key={
+                                'instanceId':instance_id,
+                                'region':REGION
+                            },
+                            UpdateExpression="set instanceStatus = :r",
+                            ExpressionAttributeValues={
+                                ':r': 'running',
+                            },
+                            ReturnValues="UPDATED_NEW"
+                        )
             
             state='pending'
             publicIP=''
@@ -184,10 +225,11 @@ def process(event, context):
                                 'region':REGION
                                
                             },
-                            UpdateExpression="set instanceStatus = :r, instanceIp = :p",
+                            UpdateExpression="set instanceStatus = :r, instanceIp = :p ,eventLock = :q",
                             ExpressionAttributeValues={
                                 ':r': 'running',
-                                ':p':publicIP
+                                ':p':publicIP,
+                                ':q':''
                             },
                             ReturnValues="UPDATED_NEW"
                         )
