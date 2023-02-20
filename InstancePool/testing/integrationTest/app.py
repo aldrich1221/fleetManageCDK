@@ -15,7 +15,7 @@ logger.setLevel(logging.INFO)
 class CustomError(Exception):
   pass
 def call_attachEC2(userId,region,amount,appIds):
-  baseUrl="https://uy56z0gnck.execute-api.us-east-1.amazonaws.com/prod/v1"
+  baseUrl=" https://j6v6v3m0eh.execute-api.us-east-1.amazonaws.com/prod/v1"
  
   headers = {
         'authorizationtoken':'Basic cnJ0ZWFtOmlsb3ZlaHRj',
@@ -45,7 +45,7 @@ def call_attachEC2(userId,region,amount,appIds):
 
 
 def call_detachEC2(userId,regions,ec2ids):
-  baseUrl="https://e6yl26f3el.execute-api.us-east-1.amazonaws.com/prod/v1"
+  baseUrl="https://hxhpsdbcv0.execute-api.us-east-1.amazonaws.com/prod/v1"
  
 
   headers = {
@@ -70,13 +70,14 @@ def call_detachEC2(userId,regions,ec2ids):
   logger.info("======== call_detachEC2 response ------")
   logger.info(resp_dict)
   return resp_dict
-def startEC2(lambdaclient,ec2ids,ec2regions,userId):
+def startEC2(lambdaclient,ec2ids,ec2regions,userId,eventId):
     payload = { 
         "pathParameters": { "userid":userId,'actionid':'start'},
         "body":
             { 
                 'ec2ids':ec2ids,
-                'ec2regions':ec2regions
+                'ec2regions':ec2regions,
+                'eventId':eventId
             } 
     } 
     lambdaclient.invoke(FunctionName='Function_vbs_manage_ec2',
@@ -116,10 +117,10 @@ def queryInstanceByEventId(eventId,userId,amount):
                     'zone':item['zone']['S'],
                     'region':item['region']['S']
                 }
-                logger.info("availableInstanceCount")
-                logger.info(availableInstanceCount)
-                logger.info("request amount")
-                logger.info(amount)
+                # logger.info("availableInstanceCount")
+                # logger.info(availableInstanceCount)
+                # logger.info("request amount")
+                # logger.info(amount)
                 
                 # if item['instanceIp']['S']!='':
                 #     availableInstances.append(newItem)
@@ -128,9 +129,9 @@ def queryInstanceByEventId(eventId,userId,amount):
                 if item['instanceIp']['S']!='':
                     availableInstances.append(newItem)
                     availableInstanceCount=availableInstanceCount+1
-                else:
+                # else:
                     
-                    startEC2(lambdaclient,[item['instanceId']['S']],[item['region']['S']],userId)
+                #     startEC2(lambdaclient,[item['instanceId']['S']],[item['region']['S']],userId)
         if availableInstanceCount==amount:
             break
         whileCount=whileCount+1
@@ -139,26 +140,41 @@ def queryInstanceByEventId(eventId,userId,amount):
     
     dynamodb_resource = boto3.resource('dynamodb', region_name='us-east-1')
     table = dynamodb_resource.Table('VBS_Instance_Pool')
+    
     regions=[]
     ids=[]
     ips=[]
-    for item in availableInstances:
-        regions.append(item['zone'])
-        ids.append(item['instanceId'])
-        ips.append(item['instanceIp'])
-        response = table.update_item(
-                    Key={
-                        'instanceId':item['instanceId'],
-                        'region':item['region'],
-                    },
-                    UpdateExpression="set available = :r",
-                    ExpressionAttributeValues={
-                        ':r': 'false',  
-                    },
-                    ReturnValues="UPDATED_NEW"
-                )
-    logger.info("======== availableInstances-------------")
-    logger.info(availableInstances)
+    if len(availableInstances)>0:
+        logger.info("======== availableInstances-------------")
+        logger.info(availableInstances)
+        for item in availableInstances:
+            regions.append(item['zone'])
+            ids.append(item['instanceId'])
+            ips.append(item['instanceIp'])
+            response = table.update_item(
+                        Key={
+                            'instanceId':item['instanceId'],
+                            'region':item['region'],
+                        },
+                        UpdateExpression="set available = :r",
+                        ExpressionAttributeValues={
+                            ':r': 'false',  
+                        },
+                        ReturnValues="UPDATED_NEW"
+                    )
+    else:
+        logger.info("========No availableInstances QQ-------------")
+        logger.info(availableInstances)
+        for item in response['Items']:
+            logger.info("***--***")
+            logger.info(item['instanceId']['S'])
+            logger.info(item['available']['S'])
+            logger.info(item['userId']['S'])
+            logger.info(item['eventId']['S'])
+            logger.info(item['eventLock']['S'])
+            
+          
+   
     return ids,regions,ips
     
 def processPoolItemsToAPIFormat(response,amount):
@@ -200,7 +216,7 @@ def processPoolItemsToAPIFormat(response,amount):
 def integrationTest_singleRegion_random(regionId,body):
     tries=body['tries']
     maxInstancesPerReq=body['maxInstancesPerReq']
-
+    
     userId="integrationtest"
     appIds=[
         "bbee173e-955c-4f3d-a0b9-b37f45502dc2",
@@ -221,11 +237,13 @@ def integrationTest_singleRegion_random(regionId,body):
 
     random.shuffle(allRequestInstanceNums_toAttach)
     random.shuffle(allRequestInstanceNums_toDetach)
-
-
+    
+    logger.info(allRequestInstanceNums_toAttach)
+    logger.info(allRequestInstanceNums_toDetach)
+    
     # ####
-    # allRequestInstanceNums_toAttach=[1,2,3]
-    # allRequestInstanceNums_toDetach=[2,2,2]
+    # allRequestInstanceNums_toAttach=[5]
+    # allRequestInstanceNums_toDetach=[5]
 
     nowTotalInUse=0
     attachIndex=0
@@ -260,6 +278,9 @@ def integrationTest_singleRegion_random(regionId,body):
                 AllEC2Ids=AllEC2Ids+ec2ids
                 AllEC2Regions=AllEC2Regions+ec2regions
                 logger.info(reponse)
+                
+                random.shuffle(AllEC2Regions)
+                random.shuffle(AllEC2Ids)
         else:
             logger.info("Go detach......")
             logger.info("======================================= whilecount ---------------------------")
@@ -305,16 +326,25 @@ def integrationTest_singleRegion_random(regionId,body):
                     reponse=call_detachEC2(userId,AllEC2Regions[:detachAmount],AllEC2Ids[:detachAmount])
                     AllEC2Regions=AllEC2Regions[detachAmount:]
                     AllEC2Ids=AllEC2Ids[detachAmount:]
+                    
+                    
+                 
         whilecount=whilecount+1 
         
     logger.info("===Ave Attach Time----")
     logger.info(AttachWaitingTime)
     logger.info(total/len(AttachWaitingTime))
 
-   
 def process(event, context):
-    body=event['body']
-    body= json.loads(body)
+    # body=event['body']
+    # body= json.loads(body)
+    body=dict()
+    body['tries']=10
+    body['maxInstancesPerReq']=10
+    # tries=body['tries']
+    # maxInstancesPerReq=body['maxInstancesPerReq']
+    
+    
     
     integrationTest_singleRegion_random('ap-east-1',body)
     

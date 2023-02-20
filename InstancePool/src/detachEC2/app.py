@@ -46,21 +46,31 @@ def process(event, context):
     logger.info("======== dateTimeStr ------")
     logger.info(dateTimeStr)
 
-    
-    parameter = {"processCount":0,"regions" : regionIds,'instanceIds':instanceIds,'dateTimeStr':dateTimeStr,'userId':userId,'eventUUID':msgId}
-    parameterStr = json.dumps(parameter)
+    message_Ids=[]
+    message_Regions=[]
+    for i in range(len(instanceIds)):
+        if i%2==0:
+            message_Ids.append(instanceIds[i])
+            message_Regions.append(regionIds[i])
 
-    logger.info("======== parameterStr ------")
-    logger.info(parameterStr)
-    queue.send_message(
-        MessageBody=parameterStr, 
-        MessageAttributes={
-        'ActionEvent': {
-            'StringValue': 'DetachEC2',
-            'DataType': 'String'
-            },
-        })
-   
+            parameter = {"processCount":0,"regions" : message_Regions,'instanceIds':message_Ids,'dateTimeStr':dateTimeStr,'userId':userId,'eventUUID':msgId}
+            parameterStr = json.dumps(parameter)
+
+            logger.info("======== parameterStr ------")
+            logger.info(parameterStr)
+            queue.send_message(
+                MessageBody=parameterStr, 
+                MessageAttributes={
+                'ActionEvent': {
+                    'StringValue': 'DetachEC2',
+                    'DataType': 'String'
+                    },
+                })
+            message_Ids=[]
+            message_Regions=[]
+        else:
+            message_Ids.append(instanceIds[i])
+            message_Regions.append(regionIds[i])
     
     ###########code here
     return "Detach Event Sent"

@@ -5,9 +5,11 @@ import boto3
 import logging
 import boto3
 from boto3.dynamodb.conditions import Key, Attr
+import datetime
 AccessControlAllowOrigin="https://d1wzk0972nk23y.cloudfront.net"
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+dateTimeStrFormat = "%Y-%m-%d/%H:%M:%S:%f"
 class CustomError(Exception):
   pass
 def process(event, context):
@@ -21,22 +23,37 @@ def process(event, context):
         raise CustomError("Please check the parameters.")
 
     #########code here
-    aciton=pathParameters['acitonId']
-    userid=pathParameters['userId']
+    aciton=pathParameters['actionid']
+    userid=pathParameters['userid']
     
     if aciton=='queryCostInPeriod':
         StartTime=body['StartTime']
         EndTime=body['EndTime']
+        logger.info(body)
 
+        # now             = datetime.datetime.now()
+        # three_hours_ago = now - datetime.timedelta(hours=60)
+        # #  TODO make the db UTC 
+        # now             = now.strftime(dateTimeStrFormat)
+        # three_hours_ago = three_hours_ago.strftime(dateTimeStrFormat)
+        # # fe       = Key('datetime').between(three_hours_ago,now) and Key('userId').eq(userid);
+        # fe       = Key('userId').eq(userid);
+        
+        
         dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
-
+        
         table = dynamodb.Table('VBS_User_UsageAndCost')
 
         response = table.query(
                 IndexName="userId_datetime_index",
                 KeyConditionExpression=Key('userId').eq(userid) & Key('datetime').between(StartTime,EndTime)
             )
+        # response = table.scan(
+        #         FilterExpression=fe
+        #     )
         
+        
+        logger.info(response)
         totol_time=0
         MonthDict_time={}
         DayDict_time={}
@@ -46,10 +63,17 @@ def process(event, context):
         DayDict_cost={}
 
         for item in response['Items']:
-            UsageTime_totalseconds=item['UsageTime_totalseconds']['S']
-            UsageCost=item['UsageCost']['S']
             
-            datetimeStr=item['datetime']['S']
+            logger.info(item)
+            
+            UsageTime_totalseconds=float(item['UsageTime_totalseconds'])
+            UsageCost=float(item['UsageCost'])
+            
+            datetimeStr=item['datetime']
+            
+            logger.info("datetimeStr")
+            logger.info(datetimeStr)
+
             datestr=datetimeStr.split("/")[0]
             monthstr=datestr.split('-')[0]+"-"+datestr.split('-')[1]
             

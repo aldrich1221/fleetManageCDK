@@ -48,7 +48,10 @@ def process(event, context):
         ec2_resource = boto3.resource('ec2')
         if ACTION=="stop":
 
-          
+          logger.info("============action stop=============")
+          logger.info(body['eventId'])
+          logger.info(instance_id)
+            
           response_1 = ec2.stop_instances(
               InstanceIds=[
                   instance_id,
@@ -99,32 +102,43 @@ def process(event, context):
                         )
           
           state='stopping'
-        
+          start_time=datetime.now()
           while(state=='stopping'):
             Myec2= ec2.describe_instances()
         
             for pythonins in Myec2['Reservations']:
               for printout in pythonins['Instances']:
                 if printout['InstanceId']==instance_id:
-                    logger.info("============instance_data=============")
-                    logger.info(printout)
+                    # logger.info("============instance_data=============")
+                    # logger.info(printout)
                     if printout['State']['Name']=='stopped':
                    
                         state='stopped'
+                        
+            currenttime=datetime.now()
+            diff=currenttime-start_time
+            diff_totalseconds=diff.total_seconds()
+            if diff_totalseconds>180:
+                state='stopped'
+          logger.info("============Stop Action: update instance pool=============")
+            
           response = table2.update_item(
                             Key={
                                 'instanceId':instance_id,
                                 'region':REGION
                                
                             },
-                            UpdateExpression="set instanceStatus = :r ,instanceIp = :p ,eventLock = :q",
+                            UpdateExpression="set instanceStatus = :r ,instanceIp = :p ,eventLock = :q, userId = :s",
                             ExpressionAttributeValues={
                                 ':r': 'stopped',
                                 ':p': '',
-                                ':q': ''
+                                ':q': '',
+                                ':s':'HTC_RRTeam'
                             },
                             ReturnValues="UPDATED_NEW"
                         )
+          logger.info("============Stop Action: update instance pool Response=============")
+          logger.info(response)
           json_data = {"data":  [response_1,response] , 
                             
                             "status":"success",
@@ -146,6 +160,8 @@ def process(event, context):
             allresponsedata.append(json_data)
         elif ACTION=='start':
             logger.info("============action start=============")
+            logger.info(body['eventId'])
+            
             t1 = datetime.now()
             print('Start time:', t1.time())
             response_1 = ec2.start_instances(
@@ -154,7 +170,7 @@ def process(event, context):
             ]
             )
             
-
+            table2 = dynamodb_resource.Table('VBS_Instance_Pool')
             response = table2.update_item(
                             Key={
                                 'instanceId':instance_id,
@@ -219,17 +235,30 @@ def process(event, context):
                             ReturnValues="UPDATED_NEW"
                         )
             table2 = dynamodb_resource.Table('VBS_Instance_Pool')
+            eventId=body['eventId']
+            byUser=body['byUser']
+            if byUser==True:
+                eventLock=eventId
+            else:
+                eventLock=''
+            
+            logger.info("============start Action: update instance pool=============")
+            logger.info("byUser")
+            logger.info(byUser)
+            logger.info("eventLock")
+            logger.info(eventLock)    
             response = table2.update_item(
                             Key={
                                 'instanceId':instance_id,
                                 'region':REGION
                                
                             },
-                            UpdateExpression="set instanceStatus = :r, instanceIp = :p ,eventLock = :q",
+                            UpdateExpression="set instanceStatus = :r, instanceIp = :p ,eventLock = :q,userId = :s",
                             ExpressionAttributeValues={
                                 ':r': 'running',
                                 ':p':publicIP,
-                                ':q':''
+                                ':q':eventLock,
+                                ':s':USERID
                             },
                             ReturnValues="UPDATED_NEW"
                         )
@@ -243,14 +272,22 @@ def process(event, context):
             allresponsedata.append(json_data)
         elif ACTION=='delete':
           
+            logger.info("============action delete=============")
+            logger.info(body['eventId'])
+            logger.info(instance_id)
+            
             response_1 = ec2.terminate_instances(
               InstanceIds=[
                   instance_id,
               ]
             )
+            logger.info("Remove item from table ")
             
             response_2=dynamodb.delete_item(TableName='VBS_Instances_Information',Key={'id':{'S':instance_id}})
             response_3=dynamodb.delete_item(TableName='VBS_Instance_Pool',Key={'instanceId':{'S':instance_id},'region':{'S':REGION}})
+            logger.info(response_3)
+            
+            logger.info("action delete completed!!=============")
             json_data = {"data": [response_1,response_2,response_3], 
                             "Action":"Deleted",
                             "status":"success",

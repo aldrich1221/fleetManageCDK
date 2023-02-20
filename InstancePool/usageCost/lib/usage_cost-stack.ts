@@ -17,32 +17,28 @@ export class UsageCostStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    // const queue = new sqs.Queue(this, 'UsageCostQueue', {
-    //   visibilityTimeout: Duration.seconds(300)
-    // });
 
-    // const topic = new sns.Topic(this, 'UsageCostTopic');
 
-    // topic.addSubscription(new subs.SqsSubscription(queue));
+    // const table2 = new dynamodb.Table(this, 'Table2', { 
+    //     tableName:'VBS_User_UsageAndCost',
+    //     partitionKey: { name: 'eventId', type: dynamodb.AttributeType.STRING }, 
+    //     billingMode: dynamodb.BillingMode.PROVISIONED, 
+    //     readCapacity: 20,
+    //     writeCapacity: 20,
+    //     removalPolicy: cdk.RemovalPolicy.DESTROY,
+    //     sortKey: {name: 'datetime', type: dynamodb.AttributeType.STRING},
+    //     pointInTimeRecovery: true,
+    //     tableClass: dynamodb.TableClass.STANDARD,
+    //   });
 
-    // const { tableName } = new dynamodb.Table(this, 'Table', {
-    //   partitionKey: { name: 'id', type: dynamodb.AttributeType.STRING }
-    // })
-    // const { bucketName } = new s3.Bucket(this, 'MyBucket')
-     
-    // const {d2sObject}=new d2s.DataPipelineD2SCdk(this, 'DataPipeline', {
-    //   tableName,
-    //   bucketName,
-    //   throughputRatio: 0.2,
-    //   period: {
-    //     value: 1,
-    //     format: d2s.TimeFormat.Day,
-    //   },
-    //   emrTerminateAfter: {
-    //     value: 1,
-    //     format: d2s.TimeFormat.Minute
-    //   },
-    // })
+    //   table2.addGlobalSecondaryIndex({
+    //     indexName: 'userId_datetime_index',
+    //     partitionKey: {name: 'userId', type: dynamodb.AttributeType.STRING},
+    //     sortKey: {name: 'datetime', type: dynamodb.AttributeType.STRING},
+    //     readCapacity: 1,
+    //     writeCapacity: 1,
+    //     projectionType: dynamodb.ProjectionType.ALL,
+    //   });
 
     const s3Bucket = new s3.Bucket(this, 's3-bucket', {
       // bucketName: 'my-bucket',
@@ -97,12 +93,12 @@ export class UsageCostStack extends Stack {
     const failureAndRerunMode ="CASCADE"
 
 
-    // const dataPipelineDefaultRole = new iam.Role(this, 'dataPipelineDefaultRole', {
-    //   assumedBy: new iam.CompositePrincipal(
-    //     new iam.ServicePrincipal('datapipeline.amazonaws.com'),
-    //     new iam.ServicePrincipal('elasticmapreduce.amazonaws.com'),
-    //   ),
-    // })
+    const dataPipelineDefaultRole = new iam.Role(this, 'dataPipelineDefaultRole', {
+      assumedBy: new iam.CompositePrincipal(
+        new iam.ServicePrincipal('datapipeline.amazonaws.com'),
+        new iam.ServicePrincipal('elasticmapreduce.amazonaws.com'),
+      ),
+    })
 
     // const Policy_vbs_datapipeline = new iam.PolicyStatement();
     // Policy_vbs_datapipeline .addResources("*");
@@ -113,9 +109,11 @@ export class UsageCostStack extends Stack {
     // dataPipelineDefaultRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSDataPipelineRole'))
 
 
-    // const dataPipelineDefaultResourceRole = new iam.Role(this, 'dataPipelineDefaultResourceRole', {
-    //   assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
-    // })
+    const dataPipelineDefaultResourceRole = new iam.Role(this, 'dataPipelineDefaultResourceRole', {
+      assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+    })
+
+
     // dataPipelineDefaultResourceRole.addManagedPolicy(
     //   iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonEC2RoleforDataPipelineRole'),
     // )
@@ -126,6 +124,8 @@ export class UsageCostStack extends Stack {
     //   roles: [dataPipelineDefaultResourceRole.roleName],
     //   instanceProfileName: dataPipelineDefaultResourceRole.roleName,
     // })
+
+
     new datapipeline.CfnPipeline(this, pipelineid, {
       name: id,
       parameterObjects: [],
@@ -244,14 +244,14 @@ export class UsageCostStack extends Stack {
               key: 'failureAndRerunMode',
               stringValue: failureAndRerunMode,
             },
-            // {
-            //   key: 'role',
-            //   stringValue: dataPipelineDefaultRole.roleName,
-            // },
-            // {
-            //   key: 'resourceRole',
-            //   stringValue: dataPipelineDefaultResourceRole.roleName,
-            // },
+            {
+              key: 'role',
+              stringValue: dataPipelineDefaultRole.roleName,
+            },
+            {
+              key: 'resourceRole',
+              stringValue: dataPipelineDefaultResourceRole.roleName,
+            },
             {
               key: 'schedule',
               refValue: 'DefaultSchedule',

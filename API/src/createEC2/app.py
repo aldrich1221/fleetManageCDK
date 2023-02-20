@@ -50,6 +50,26 @@ def getSnapshotID(contentid,region):
   logger.info("======== req ------")
   logger.info(resp_dict['snapshot_id'])
   return resp_dict['snapshot_id']
+def putInstancePoolRow(instances,REGION,ZONE,USERID,eventId,eventTime,eventLock,dynamodb):
+  for instance_i in range(len(instances)):
+   
+    instance_id = instances[instance_i]['InstanceId']
+
+    response=dynamodb.put_item(TableName='VBS_Instance_Pool', Item={
+              'instanceId':{'S':instance_id},
+              'instanceIp':{'S':''},
+              'region':{'S':REGION},
+              'zone':{'S':ZONE},
+              'userId':{'S':USERID},
+              'instanceStatus':{'S':'running'},
+              'eventId':{'S':eventId},
+              'eventTime':{'S':eventTime},
+              'available':{'S':'true'},
+              'gsi_zone':{'S':ZONE},
+              'eventLock':{'S':eventLock}
+             
+              
+            })
 def process(event, context):
     try:
             logger.info(event)
@@ -86,7 +106,7 @@ def process(event, context):
     try:
       dynamodb = boto3.client('dynamodb')
       dynamodb_resource = boto3.resource('dynamodb', region_name=DEFAULTREGION)
-      
+      table2 = dynamodb_resource.Table('VBS_Instance_Pool')
       table = dynamodb_resource.Table('VBS_Region_Info')
       instance_data = table.scan(
                     FilterExpression=Attr("zone").eq(ZONE)
@@ -204,6 +224,10 @@ def process(event, context):
                                 'Tags': [tag_1,tag_3,tag_4]}],
               BlockDeviceMappings=BlockDeviceMappings
           )
+          
+          logger.info("============instance created!!=============")
+          putInstancePoolRow(instance['Instances'],REGION,ZONE,USERID,"event-newLauching-WaitingIP",eventTime,"event-newLauching-WaitingIP",dynamodb)
+          
           json_data =[]
           for instance_i in range(len(instance['Instances'])):
             BlockDeviceMappings= instance['Instances'][instance_i]['BlockDeviceMappings']
@@ -257,23 +281,49 @@ def process(event, context):
           })
             if emergency==True:
               eventLock=eventId
+             
             else:
+              
               eventLock=''
-            response=dynamodb.put_item(TableName='VBS_Instance_Pool', Item={
-            'instanceId':{'S':instance_id},
-            'instanceIp':{'S':publicIP},
-            'region':{'S':REGION},
-            'zone':{'S':ZONE},
-            'userId':{'S':USERID},
-            'instanceStatus':{'S':'running'},
-            'eventId':{'S':eventId},
-            'eventTime':{'S':eventTime},
-            'available':{'S':'true'},
-            'gsi_zone':{'S':ZONE},
-            'eventLock':{'S':eventLock}
+            logger.info("============put instance pool=============")
+            logger.info("emergency")
+            logger.info(emergency)
+            logger.info("eventLock")
+            logger.info(eventLock)
+          #   response=dynamodb.put_item(TableName='VBS_Instance_Pool', Item={
+          #   'instanceId':{'S':instance_id},
+          #   'instanceIp':{'S':publicIP},
+          #   'region':{'S':REGION},
+          #   'zone':{'S':ZONE},
+          #   'userId':{'S':USERID},
+          #   'instanceStatus':{'S':'running'},
+          #   'eventId':{'S':eventId},
+          #   'eventTime':{'S':eventTime},
+          #   'available':{'S':'true'},
+          #   'gsi_zone':{'S':ZONE},
+          #   'eventLock':{'S':eventLock}
            
             
-          })
+          # })
+            
+            response = table2.update_item(
+                            Key={
+                                'instanceId':instance_id,
+                                'region':REGION
+                               
+                            },
+                            UpdateExpression="set instanceStatus = :r, instanceIp = :p ,eventLock = :q,userId = :s ,eventId = :t",
+                            ExpressionAttributeValues={
+                                ':r': 'running',
+                                ':p':publicIP,
+                                ':q':eventLock,
+                                ':s':USERID,
+                                ':t':eventId
+                            },
+                            ReturnValues="UPDATED_NEW"
+                        )
+            
+            
           
             json_data.append({
                           "status":"success",
