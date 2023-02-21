@@ -151,7 +151,7 @@ export class BasicApiStack extends cdk.Stack {
       handler: 'app.lambda_handler',
       code: lambda.Code.fromAsset(path.join(__dirname, '../../src/consumer')),
       functionName:'Function_vbs_message_consumer',
-      timeout: Duration.seconds(300),
+      timeout: Duration.seconds(900),
       layers:[layer1]
     });
 
@@ -296,15 +296,25 @@ export class BasicApiStack extends cdk.Stack {
 
 
 
-    /////////////////////////////////////   producer:detach_ec2  ///////////////////////////
-    const Function_vbs_detach_ec2 = new lambda.DockerImageFunction(this, 'Function_vbs_detach_ec2',{
-      functionName: 'Function_vbs_detach_ec2',
-      code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/detachEC2'), {
-      cmd: [ "app.lambda_handler" ],
+  //   /////////////////////////////////////   producer:detach_ec2  ///////////////////////////
+  //   const Function_vbs_detach_ec2 = new lambda.DockerImageFunction(this, 'Function_vbs_detach_ec2',{
+  //     functionName: 'Function_vbs_detach_ec2',
+  //     code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, '../../src/detachEC2'), {
+  //     cmd: [ "app.lambda_handler" ],
     
      
-      }),
-      timeout: Duration.seconds(900),
+  //     }),
+  //     timeout: Duration.seconds(900),
+  // });
+
+
+  const Function_vbs_detach_ec2 = new lambda.Function(this, 'Function_vbs_detach_ec2', {
+    runtime: lambda.Runtime.PYTHON_3_8,
+    handler: 'app.lambda_handler',
+    code: lambda.Code.fromAsset(path.join(__dirname, '../../src/detachEC2')),
+    functionName:'Function_vbs_detach_ec2',
+    timeout: Duration.seconds(900),
+    layers:[layer1]
   });
 
     const Policy_vbs_detach_ec2 = new iam.PolicyStatement();

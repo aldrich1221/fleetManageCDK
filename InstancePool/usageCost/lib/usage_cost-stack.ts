@@ -7,6 +7,7 @@ import * as datapipeline from 'aws-cdk-lib/aws-datapipeline';
 import * as cdk from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import {SqsEventSource} from 'aws-cdk-lib/aws-lambda-event-sources';
+// import { aws_iam as iam2 } from 'aws-cdk-lib';
 
 import * as apigateway from 'aws-cdk-lib/aws-apigateway'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
@@ -18,27 +19,33 @@ export class UsageCostStack extends Stack {
     super(scope, id, props);
 
 
+    
 
-    // const table2 = new dynamodb.Table(this, 'Table2', { 
-    //     tableName:'VBS_User_UsageAndCost',
-    //     partitionKey: { name: 'eventId', type: dynamodb.AttributeType.STRING }, 
-    //     billingMode: dynamodb.BillingMode.PROVISIONED, 
-    //     readCapacity: 20,
-    //     writeCapacity: 20,
-    //     removalPolicy: cdk.RemovalPolicy.DESTROY,
-    //     sortKey: {name: 'datetime', type: dynamodb.AttributeType.STRING},
-    //     pointInTimeRecovery: true,
-    //     tableClass: dynamodb.TableClass.STANDARD,
-    //   });
+    // The code below shows an example of how to instantiate this type.
+// The values are placeholders you should change.
+  
+ 
 
-    //   table2.addGlobalSecondaryIndex({
-    //     indexName: 'userId_datetime_index',
-    //     partitionKey: {name: 'userId', type: dynamodb.AttributeType.STRING},
-    //     sortKey: {name: 'datetime', type: dynamodb.AttributeType.STRING},
-    //     readCapacity: 1,
-    //     writeCapacity: 1,
-    //     projectionType: dynamodb.ProjectionType.ALL,
-    //   });
+    const table2 = new dynamodb.Table(this, 'Table2', { 
+        tableName:'VBS_User_UsageAndCost',
+        partitionKey: { name: 'eventId', type: dynamodb.AttributeType.STRING }, 
+        billingMode: dynamodb.BillingMode.PROVISIONED, 
+        readCapacity: 20,
+        writeCapacity: 20,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        sortKey: {name: 'datetime', type: dynamodb.AttributeType.STRING},
+        pointInTimeRecovery: true,
+        tableClass: dynamodb.TableClass.STANDARD,
+      });
+
+      table2.addGlobalSecondaryIndex({
+        indexName: 'userId_datetime_index',
+        partitionKey: {name: 'userId', type: dynamodb.AttributeType.STRING},
+        sortKey: {name: 'datetime', type: dynamodb.AttributeType.STRING},
+        readCapacity: 1,
+        writeCapacity: 1,
+        projectionType: dynamodb.ProjectionType.ALL,
+      });
 
     const s3Bucket = new s3.Bucket(this, 's3-bucket', {
       // bucketName: 'my-bucket',
@@ -73,7 +80,7 @@ export class UsageCostStack extends Stack {
     });
 
     // 👇 grant access to bucket
-    // s3Bucket.grantRead(new iam.AccountRootPrincipal());
+    s3Bucket.grantRead(new iam.AccountRootPrincipal());
 
     const pipelineid="VBS_datapipeline"
     const bucketName=s3Bucket.bucketName
@@ -99,24 +106,75 @@ export class UsageCostStack extends Stack {
         new iam.ServicePrincipal('elasticmapreduce.amazonaws.com'),
       ),
     })
+    const dataPipelineDefaultResourceRole = new iam.Role(this, 'dataPipelineDefaultResourceRole', {
+      assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
+    })
 
-    // const Policy_vbs_datapipeline = new iam.PolicyStatement();
-    // Policy_vbs_datapipeline .addResources("*");
-    // Policy_vbs_datapipeline .addActions("*");
+    const Policy_vbs_datapipeline = new iam.PolicyStatement();
+    Policy_vbs_datapipeline .addResources("*");
+    Policy_vbs_datapipeline .addActions("*");
+
+
+    const Policy_vbs_datapipeline2 = new iam.PolicyStatement();
+    Policy_vbs_datapipeline2 .addResources("*");
+    Policy_vbs_datapipeline2 .addActions("elasticmapreduce:*");
+
+    const Policy_vbs_datapipeline3 = new iam.PolicyStatement( )
+    Policy_vbs_datapipeline3.addActions("iam:*");
+    Policy_vbs_datapipeline3 .addResources(dataPipelineDefaultRole.roleArn);
+    Policy_vbs_datapipeline3 .addResources(dataPipelineDefaultResourceRole.roleArn);
+
+    const Policy_vbs_datapipeline4 = new iam.PolicyStatement( )
+    Policy_vbs_datapipeline4.addActions("ec2:*");
+    Policy_vbs_datapipeline4 .addResources("*");
+    
+    const Policy_vbs_datapipeline5 = new iam.PolicyStatement( )
+    Policy_vbs_datapipeline5.addActions("s3:*");
+    Policy_vbs_datapipeline5 .addResources(s3Bucket.bucketArn);
+
+    const Policy_vbs_datapipeline6 = new iam.PolicyStatement( )
+    Policy_vbs_datapipeline6.addActions("dynamodb:*");
+    Policy_vbs_datapipeline6 .addResources(table2.tableArn);
+        
+    dataPipelineDefaultRole.addToPolicy(Policy_vbs_datapipeline)
+    dataPipelineDefaultRole.addToPolicy(Policy_vbs_datapipeline2)
+    dataPipelineDefaultRole.addToPolicy(Policy_vbs_datapipeline3)
+    dataPipelineDefaultRole.addToPolicy(Policy_vbs_datapipeline4)
+    dataPipelineDefaultRole.addToPolicy(Policy_vbs_datapipeline5)
+    dataPipelineDefaultRole.addToPolicy(Policy_vbs_datapipeline6)
+
+
+
     // Function_vbs_message_consumer.addToRolePolicy(Policy_vbs_message_consumer);
     
     // dataPipelineDefaultRole.addManagedPolicy(ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSDataPipelineRole'))
     // dataPipelineDefaultRole.addManagedPolicy(iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSDataPipelineRole'))
 
+    const Policy_vbs_datapipelineresource = new iam.PolicyStatement( )
+    Policy_vbs_datapipelineresource.addActions("cloudwatch:*");
+    Policy_vbs_datapipelineresource.addActions("datapipeline:*");
+    Policy_vbs_datapipelineresource.addActions("dynamodb:*");
+    Policy_vbs_datapipelineresource.addActions("ec2:Describe*");
+    Policy_vbs_datapipelineresource.addActions("elasticmapreduce:*");
+    Policy_vbs_datapipelineresource.addActions("s3:*");
+    Policy_vbs_datapipelineresource.addActions("sdb:*");
+    Policy_vbs_datapipelineresource.addActions("sns:*");
+    Policy_vbs_datapipelineresource.addActions("sqs:*");
+    Policy_vbs_datapipelineresource.addResources("*");
 
-    const dataPipelineDefaultResourceRole = new iam.Role(this, 'dataPipelineDefaultResourceRole', {
-      assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
-    })
+
+    dataPipelineDefaultResourceRole.addToPolicy(Policy_vbs_datapipeline)
+    dataPipelineDefaultResourceRole.addToPolicy(Policy_vbs_datapipelineresource)
+
+    const cfnInstanceProfile = new iam.CfnInstanceProfile(this, 'MyCfnInstanceProfile', {
+      roles: [dataPipelineDefaultResourceRole.roleName],
+      instanceProfileName: 'instanceProfileName',
+    });
 
 
-    // dataPipelineDefaultResourceRole.addManagedPolicy(
-    //   iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonEC2RoleforDataPipelineRole'),
-    // )
+    dataPipelineDefaultResourceRole.addManagedPolicy(
+      iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonEC2RoleforDataPipelineRole'),
+    )
 
 
 
@@ -190,7 +248,7 @@ export class UsageCostStack extends Stack {
             },
             {
               key: 'type',
-              stringValue: 'HiveCopyActivity',
+              stringValue: 'EmrActivity',
             },
             {
               key: 'input',
