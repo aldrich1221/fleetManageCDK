@@ -157,11 +157,15 @@ export class UsageCostStack extends Stack {
     Policy_vbs_datapipelineresource.addActions("ec2:Describe*");
     Policy_vbs_datapipelineresource.addActions("elasticmapreduce:*");
     Policy_vbs_datapipelineresource.addActions("s3:*");
+    Policy_vbs_datapipelineresource.addActions("iam:*");
     Policy_vbs_datapipelineresource.addActions("sdb:*");
     Policy_vbs_datapipelineresource.addActions("sns:*");
     Policy_vbs_datapipelineresource.addActions("sqs:*");
     Policy_vbs_datapipelineresource.addResources("*");
+    Policy_vbs_datapipelineresource.addResources(dataPipelineDefaultRole.roleArn);
+    Policy_vbs_datapipelineresource.addResources(dataPipelineDefaultResourceRole.roleArn);
 
+  
 
     dataPipelineDefaultResourceRole.addToPolicy(Policy_vbs_datapipeline)
     dataPipelineDefaultResourceRole.addToPolicy(Policy_vbs_datapipelineresource)
@@ -266,7 +270,7 @@ export class UsageCostStack extends Stack {
         },
         {
           id: 'DefaultSchedule',
-          name: 'RunOnce',
+          name: 'RunPerMonth',
           fields: [
             {
               key: 'occurrences',
