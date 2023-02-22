@@ -141,17 +141,22 @@ def detach_EBS_Volume(instanceIds,regions):
             allVols.append({'vol_id':vol['vol_id'],'volume':volume})
     
     for item in allVols:
-        try:
-
-            waiter = ec2.get_waiter('volume_available')
-            waiter.wait(VolumeIds=[item['vol_id']],)
+        deleteVol(ec2,ec2resource,item['vol_id'])
+       
+def deleteVol(ec2Client,ec2Resource,vol_id):
+    try:
+            waiter = ec2Client.get_waiter('volume_available')
+            waiter.wait(VolumeIds=[vol_id])
+            logger.info("waiting to delete vol ................")
             print (" INFO : Volume Detached")
 
+            volume = ec2Resource.Volume(vol_id)
             # Deleting Volume Device details already available
-            item['volume'].delete()
-        except:
-            logger.info("can't delete vol")
-           
+            volume.delete()
+            logger.info("................ vol deleted!")
+    except:
+        logger.info("can't delete vol")
+    
 def attach_EBS_Volume(finalInstances,appIds,region):
     def get_vol(instanceId, ec2):
         allvol=[]
@@ -329,7 +334,7 @@ def processEvent_Shrink_Running_Pool(message):
         if stoppedNum>=stoppedThreshold:
             logger.info("delete!+sendEvent_Shrink_Stopped_Pool")
             ec2ids,ec2regions=processPoolItemsToAPIFormat(runningPoolItems,runningNum-runningThreshold,msgId,dynamodbClient,table)
-            deleteEC2(lambdaclient,ec2ids,ec2regions,msgId)
+            deleteEC2(lambdaclient,dynamodbClient,ec2ids,ec2regions,msgId)
             
             # sendEvent_Shrink_Stopped_Pool(zone)
             checkProcessEventStatus(zone,processCount)
@@ -393,7 +398,7 @@ def processEvent_Shrink_Stopped_Pool(message):
 
                 deleteNumber=stoppedNum-stoppedThreshold-(runningThreshold-runningNum)
                 ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,runningThreshold-runningNum,msgId,dynamodbClient,table)
-                deleteEC2(lambdaclient,ec2ids,ec2regions,msgId)
+                deleteEC2(lambdaclient,dynamodbClient,ec2ids,ec2regions,msgId)
 
                 checkProcessEventStatus(zone,processCount)
 
@@ -408,7 +413,7 @@ def processEvent_Shrink_Stopped_Pool(message):
         else:
             
             ec2ids,ec2regions=processPoolItemsToAPIFormat(stoppedPoolItems,stoppedNum-stoppedThreshold,msgId,dynamodbClient,table)
-            deleteEC2(lambdaclient,ec2ids,ec2regions,msgId)
+            deleteEC2(lambdaclient,dynamodbClient,ec2ids,ec2regions,msgId)
             # sendEvent_Shrink_Running_Pool(zone)
             checkProcessEventStatus(zone,processCount)
 
@@ -1124,7 +1129,7 @@ def getLockDataWrite(dynamodbClient,instancesId,eventId):
         return False
 
 
-def deleteEC2(lambdaclient,ec2ids,ec2regions,eventId):
+def deleteEC2(lambdaclient,dynamodbclient,ec2ids,ec2regions,eventId):
     payload = { 
         "pathParameters": { "userid":"HTC_RRTeam",'actionid':'delete'},
         "body":
@@ -1137,6 +1142,8 @@ def deleteEC2(lambdaclient,ec2ids,ec2regions,eventId):
     result = lambdaclient.invoke(FunctionName='Function_vbs_manage_ec2',
                 InvocationType='RequestResponse',                                      
                 Payload=json.dumps(payload))
+   
+    response_3=dynamodbclient.delete_item(TableName='VBS_Instance_Pool',Key={'instanceId':{'S':instance_id},'region':{'S':REGION}})
     
 
 

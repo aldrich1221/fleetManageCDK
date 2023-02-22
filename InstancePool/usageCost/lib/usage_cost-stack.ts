@@ -123,7 +123,7 @@ export class UsageCostStack extends Stack {
     Policy_vbs_datapipeline3.addActions("iam:*");
     Policy_vbs_datapipeline3 .addResources(dataPipelineDefaultRole.roleArn);
     Policy_vbs_datapipeline3 .addResources(dataPipelineDefaultResourceRole.roleArn);
-
+    Policy_vbs_datapipeline3 .addResources("*");
     const Policy_vbs_datapipeline4 = new iam.PolicyStatement( )
     Policy_vbs_datapipeline4.addActions("ec2:*");
     Policy_vbs_datapipeline4 .addResources("*");
@@ -172,7 +172,7 @@ export class UsageCostStack extends Stack {
 
     const cfnInstanceProfile = new iam.CfnInstanceProfile(this, 'MyCfnInstanceProfile', {
       roles: [dataPipelineDefaultResourceRole.roleName],
-      instanceProfileName: 'instanceProfileName',
+      instanceProfileName: dataPipelineDefaultResourceRole.roleName,
     });
 
 
