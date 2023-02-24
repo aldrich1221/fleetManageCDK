@@ -94,7 +94,7 @@ export class BasicApiStack extends Stack {
     const API_vbs_create_ec2_user = API_vbs_create_ec2_v1.addResource('user');
     const API_vbs_create_ec2_userid = API_vbs_create_ec2_user.addResource('{userid}');
     
- 
+
 
     const Authorizer_vbs_create_ec2 = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_create_ec2', {
       handler: Function_vbs_api_authorize,
@@ -272,7 +272,7 @@ export class BasicApiStack extends Stack {
     const API_vbs_cost_actionid = API_vbs_cost_action.addResource('{actionid}');
     
  
-
+    
     const Authorizer_vbs_cost = new apigateway.RequestAuthorizer(this, 'Authorizer_vbs_cost', {
       handler: Function_vbs_api_authorize,
       identitySources: [apigateway.IdentitySource.header('authorizationtoken')]

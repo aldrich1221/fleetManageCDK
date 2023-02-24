@@ -26,62 +26,6 @@ export class UsageCostStack extends Stack {
   
 
 
-    const table2 = new dynamodb.Table(this, 'Table2', { 
-        tableName:'VBS_User_UsageAndCost',
-        partitionKey: { name: 'eventId', type: dynamodb.AttributeType.STRING }, 
-        billingMode: dynamodb.BillingMode.PROVISIONED, 
-        readCapacity: 20,
-        writeCapacity: 20,
-        removalPolicy: cdk.RemovalPolicy.DESTROY,
-        sortKey: {name: 'datetime', type: dynamodb.AttributeType.STRING},
-        pointInTimeRecovery: true,
-        tableClass: dynamodb.TableClass.STANDARD,
-      });
-
-      table2.addGlobalSecondaryIndex({
-        indexName: 'userId_datetime_index',
-        partitionKey: {name: 'userId', type: dynamodb.AttributeType.STRING},
-        sortKey: {name: 'datetime', type: dynamodb.AttributeType.STRING},
-        readCapacity: 1,
-        writeCapacity: 1,
-        projectionType: dynamodb.ProjectionType.ALL,
-      });
-
-    const s3Bucket = new s3.Bucket(this, 's3-bucket', {
-      // bucketName: 'my-bucket',
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      autoDeleteObjects: true,
-      versioned: false,
-      publicReadAccess: false,
-      encryption: s3.BucketEncryption.S3_MANAGED,
-      // cors: [
-      //   {
-      //     allowedMethods: [
-      //       s3.HttpMethods.GET,
-      //       s3.HttpMethods.POST,
-      //       s3.HttpMethods.PUT,
-      //     ],
-      //     allowedOrigins: ['http://localhost:3000'],
-      //     allowedHeaders: ['*'],
-      //   },
-      // ],
-      // lifecycleRules: [
-      //   {
-      //     abortIncompleteMultipartUploadAfter: cdk.Duration.days(90),
-      //     expiration: cdk.Duration.days(365),
-      //     transitions: [
-      //       {
-      //         storageClass: s3.StorageClass.INFREQUENT_ACCESS,
-      //         transitionAfter: cdk.Duration.days(30),
-      //       },
-      //     ],
-      //   },
-      // ],
-    });
-
-    // 👇 grant access to bucket
-    s3Bucket.grantRead(new iam.AccountRootPrincipal());
-
     const pipelineid="VBS_datapipeline"
     const bucketName=s3Bucket.bucketName
     const tableName="VBS_User_UsageAndCost"
@@ -136,7 +80,7 @@ export class UsageCostStack extends Stack {
     Policy_vbs_datapipeline2 .addActions("elasticmapreduce:AddJobFlowSteps");
     Policy_vbs_datapipeline2 .addActions("elasticmapreduce:ListInstances");
 
-    
+
 
     const Policy_vbs_datapipeline3 = new iam.PolicyStatement( )
     Policy_vbs_datapipeline3.effect=iam.Effect.ALLOW
@@ -204,11 +148,6 @@ export class UsageCostStack extends Stack {
 
 
 
-    // new iam.CfnInstanceProfile(this, 'dataPipelineDefaultResourceRoleInstanceProfile', {
-    //   roles: [dataPipelineDefaultResourceRole.roleName],
-    //   instanceProfileName: dataPipelineDefaultResourceRole.roleName,
-    // })
-
 
     new datapipeline.CfnPipeline(this, pipelineid, {
       name: id,
@@ -222,10 +161,6 @@ export class UsageCostStack extends Stack {
               key: 'type',
               stringValue: 'S3DataNode',
             },
-            // {
-            //   key: 'dataFormat',
-            //   refValue: 'DDBExportFormat',
-            // },
             {
               key: 'directoryPath',
               stringValue: `s3://${bucketName}/#{format(@scheduledStartTime, 'YYYY-MM-dd-HH-mm-ss')}`,
@@ -244,26 +179,12 @@ export class UsageCostStack extends Stack {
               key: 'type',
               stringValue: 'DynamoDBDataNode',
             },
-            // {
-            //   key: 'dataFormat',
-            //   refValue: 'DDBExportFormat',
-            // },
             {
               key: 'readThroughputPercent',
               stringValue: `${throughputRatio}`,
             },
           ],
         },
-        // {
-        //   id: 'DDBExportFormat',
-        //   name: 'DDBExportFormat',
-        //   fields: [
-        //     {
-        //       key: 'type',
-        //       stringValue: 'DynamoDBExportDataFormat',
-        //     },
-        //   ],
-        // },
         {
           id: 'TableBackupActivity',
           name: 'TableBackupActivity',
