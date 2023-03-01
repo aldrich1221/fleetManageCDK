@@ -61,7 +61,9 @@ export class SystemMonitorStack extends Stack {
     const eventRule_vbs_system_monitor=new events.Rule(this, "monitorRule", {
     
       // schedule:events.Schedule.rate(cdk.Duration.minutes(3))
-      schedule:events.Schedule.rate(cdk.Duration.days(1))
+      // schedule:events.Schedule.rate(cdk.Duration.days(1))
+      // schedule:events.Schedule.cron(hour=10,12,* ,* ,? *)
+      schedule:events.Schedule.expression("cron(0 2 * * ? *)")
     });
 
     eventRule_vbs_system_monitor.addTarget(
@@ -72,6 +74,6 @@ export class SystemMonitorStack extends Stack {
 
     targets.addLambdaPermission(eventRule_vbs_system_monitor, Function_vbs_system_monitor);
 
-
+      
   }
 }

@@ -122,6 +122,7 @@ export class UsageCostStack extends Stack {
     const Policy_vbs_datapipeline2 = new iam.PolicyStatement();
     Policy_vbs_datapipeline2.effect=iam.Effect.ALLOW
     Policy_vbs_datapipeline2 .addResources("*");
+    Policy_vbs_datapipeline2 .addActions("elasticmapreduce:*");
     Policy_vbs_datapipeline2 .addActions("elasticmapreduce:TerminateJobFlows");
     Policy_vbs_datapipeline2 .addActions("elasticmapreduce:ListSteps");
     Policy_vbs_datapipeline2 .addActions("elasticmapreduce:ListClusters");
@@ -135,16 +136,24 @@ export class UsageCostStack extends Stack {
     Policy_vbs_datapipeline2 .addActions("elasticmapreduce:DescribeStep");
     Policy_vbs_datapipeline2 .addActions("elasticmapreduce:AddJobFlowSteps");
     Policy_vbs_datapipeline2 .addActions("elasticmapreduce:ListInstances");
+    Policy_vbs_datapipeline2 .addActions("ec2:*");
+    Policy_vbs_datapipeline2 .addActions("redshift:*");
+    Policy_vbs_datapipeline2 .addActions("iam:*");
 
     
 
     const Policy_vbs_datapipeline3 = new iam.PolicyStatement( )
     Policy_vbs_datapipeline3.effect=iam.Effect.ALLOW
     Policy_vbs_datapipeline3.addActions("iam:*");
+    Policy_vbs_datapipeline3.addActions("iam:GetInstanceProfile");
     Policy_vbs_datapipeline3.addActions("iam:ListInstanceProfiles");
-    Policy_vbs_datapipeline3 .addResources(dataPipelineDefaultRole.roleArn);
-    Policy_vbs_datapipeline3 .addResources(dataPipelineDefaultResourceRole.roleArn);
-    Policy_vbs_datapipeline3 .addResources("*");
+    Policy_vbs_datapipeline3.addActions("iam:ListInstanceProfiles");
+    Policy_vbs_datapipeline3.addActions("iam:ListInstanceProfiles");
+    Policy_vbs_datapipeline3.addActions("iam:ListInstanceProfiles");
+    Policy_vbs_datapipeline3.addActions("iam:ListInstanceProfiles");
+    Policy_vbs_datapipeline3.addResources(dataPipelineDefaultRole.roleArn);
+    Policy_vbs_datapipeline3.addResources(dataPipelineDefaultResourceRole.roleArn);
+    Policy_vbs_datapipeline3.addResources("*");
 
     const Policy_vbs_datapipeline4 = new iam.PolicyStatement( )
     Policy_vbs_datapipeline4.effect=iam.Effect.ALLOW
@@ -185,7 +194,7 @@ export class UsageCostStack extends Stack {
     Policy_vbs_datapipelineresource.addActions("sdb:*");
     Policy_vbs_datapipelineresource.addActions("sns:*");
     Policy_vbs_datapipelineresource.addActions("sqs:*");
-    // Policy_vbs_datapipelineresource.addResources("*");
+    Policy_vbs_datapipelineresource.addResources("*");
     Policy_vbs_datapipelineresource.addResources(dataPipelineDefaultRole.roleArn);
     Policy_vbs_datapipelineresource.addResources(dataPipelineDefaultResourceRole.roleArn);
 
@@ -209,6 +218,23 @@ export class UsageCostStack extends Stack {
     //   instanceProfileName: dataPipelineDefaultResourceRole.roleName,
     // })
 
+    
+    new cdk.CfnOutput(this, 'dataPipelineDefaultResourceRoleroleName', {
+      value: dataPipelineDefaultResourceRole.roleName,
+      description: 'The name of dataPipelineDefaultResourceRole.roleName',
+      exportName: 'dataPipelineDefaultResourceRoleroleName',
+    });
+
+    new cdk.CfnOutput(this, 'dataPipelineDefaultResourceRoleroleArn', {
+      value: dataPipelineDefaultResourceRole.roleArn,
+      description: 'The name of dataPipelineDefaultResourceRole.roleArn',
+      exportName: 'dataPipelineDefaultResourceRoleroleArn',
+    });
+    new cdk.CfnOutput(this, 'dataPipelineDefaultRoleroleArn', {
+      value: dataPipelineDefaultRole.roleArn,
+      description: 'The name of ddataPipelineDefaultRoleroleArn',
+      exportName: 'dataPipelineDefaultRoleroleArn',
+    });
 
     new datapipeline.CfnPipeline(this, pipelineid, {
       name: id,
@@ -322,7 +348,7 @@ export class UsageCostStack extends Stack {
           fields: [
             {
               key: 'type',
-              stringValue: 'Default',
+              stringValue: 'Configuration',
             },
             {
               key: 'scheduleType',

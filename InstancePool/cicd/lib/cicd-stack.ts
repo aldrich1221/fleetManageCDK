@@ -8,14 +8,15 @@ import * as cdk from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import {SqsEventSource} from 'aws-cdk-lib/aws-lambda-event-sources';
 // import { aws_iam as iam2 } from 'aws-cdk-lib';
-
+import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
-
+import * as path from 'path';
 import * as codepipeline from 'aws-cdk-lib/aws-codepipeline';
 import * as codebuild from 'aws-cdk-lib/aws-codebuild';
+import * as codedeploy from 'aws-cdk-lib/aws-codedeploy';
 import * as codecommit from 'aws-cdk-lib/aws-codecommit';
 import * as codepipeline_actions from 'aws-cdk-lib/aws-codepipeline-actions';
 
@@ -94,11 +95,24 @@ export class CicdStack extends cdk.Stack {
   //   });
 
 
+  const jenkinsProvider = new codepipeline_actions.JenkinsProvider(this, 'JenkinsProvider', {
+    providerName: 'MyJenkinsProvider',
+    serverUrl: 'ip-172-31-20-13.ec2.internal:8080',
+    version: '2', // optional, default: '1'
+  });
+  const JenkinsBuildAction = new codepipeline_actions.JenkinsAction({
+    actionName: 'JenkinsBuild',
+    jenkinsProvider: jenkinsProvider,
+    projectName: 'MyProject',
+    type: codepipeline_actions.JenkinsActionType.BUILD,
+  });
+
+  
 
     ///////////////////////////  code pipeline ///////////////////////////
 
     var ecrRepository_name="vbsInstancePoolECR"
-    var codecommitRepository_name="vbsInstancePoolCodeCommit"
+    var codecommitRepository_name="vbsInstancePoolFunctionRepo"
     var codebuildProject_name="vbsInstancePoolCodeBuild"
     var codepipeline_name='vbsInstancePoolCodePipeline'
     var notifications_email='aldrich_chen@htc.com'
@@ -116,7 +130,7 @@ export class CicdStack extends cdk.Stack {
 
     const codecommitRepository = new codecommit.Repository(this, 'Repository', {
       repositoryName: codecommitRepository_name,
-      description: 'Some description.', // optional property
+      description: 'The lambda function of instance pool mechanism.', // optional property
     });
 
     
@@ -202,6 +216,34 @@ export class CicdStack extends cdk.Stack {
       project: codebuildProject
     });
 
+    const deployApplication = new codedeploy.LambdaApplication(this, 'CodeDeployApplication', {
+      applicationName: 'instancePool', // optional property
+    });
+
+    const Function_vbs_codeDeploy_test  = new lambda.Function(this, 'Function_vbs_codeDeploy_test', {
+      runtime: lambda.Runtime.PYTHON_3_8,
+      handler: 'app.lambda_handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../src/test')),
+      functionName:'Function_vbs_codeDeploy_test',
+      timeout: Duration.seconds(900),
+      
+    });
+    
+    
+
+   
+    const version = Function_vbs_codeDeploy_test.currentVersion;
+    const version1Alias = new lambda.Alias(this, 'alias', {
+      aliasName: 'test',
+      version,
+    });
+    
+    const deploymentGroup = new codedeploy.LambdaDeploymentGroup(this, 'BlueGreenDeployment', {
+      application: deployApplication, // optional property: one will be created for you if not provided
+      alias: version1Alias,
+      deploymentConfig: codedeploy.LambdaDeploymentConfig.LINEAR_10PERCENT_EVERY_1MINUTE,
+    });
+
 
     // // create pipeline, and then add both codecommit and codebuild  
     const pipeline = new codepipeline.Pipeline(this, "Pipeline", {
@@ -220,6 +262,24 @@ export class CicdStack extends cdk.Stack {
       stageName: "Test",
       actions: [buildAction2]
     });
+
+    pipeline.addStage({
+      stageName: "Jenkins",
+      actions: [JenkinsBuildAction]
+    });
+   
+
+    // const approveStage = pipeline.addStage({ stageName: 'Approve' });
+    // const manualApprovalAction = new codepipeline_actions.ManualApprovalAction({
+    //   actionName: 'Approve',
+    // });
+    // approveStage.addAction(manualApprovalAction);
+
+    // const role = iam.Role.fromRoleArn(this, 'Admin', Arn.format({ service: 'iam', resource: 'role', resourceName: 'Admin' }, this));
+    // manualApprovalAction.grantManualApproval(role);
+   
+ 
+
     // /**
     //  * SNS: Monitor pipeline state change then notifiy
     // **/

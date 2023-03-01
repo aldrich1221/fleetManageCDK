@@ -37,13 +37,16 @@ def send_CostUsage_Daily():
     d3=seven_days.strftime("%Y-%m-%d")
     
     client = boto3.client('ce')
+
+    costMethod='UnblendedCost'
+    # costMethod='AmortizedCost'
     result = client.get_cost_and_usage(
     TimePeriod = {
         'Start': d2,
         'End': d
     },
     Granularity = 'DAILY',
-    Metrics = ["AmortizedCost"],
+    Metrics = [costMethod],
 
     )
     logger.info("============result=============")
@@ -52,10 +55,10 @@ def send_CostUsage_Daily():
     costarray=result['ResultsByTime']
     for costdayitem in costarray:
         
-        x =float(costdayitem["Total"]["AmortizedCost"]["Amount"])
-        new_x=f'{x:.3f}'
+        x =float(costdayitem["Total"][costMethod]["Amount"])
+        new_x=f'{x:.0f}'
 
-        dailycosts.append(float(costdayitem["Total"]["AmortizedCost"]["Amount"]))
+        dailycosts.append(float(costdayitem["Total"][costMethod]["Amount"]))
         yesterdayCost=new_x
     
     logger.info("dailycosts")
@@ -63,14 +66,14 @@ def send_CostUsage_Daily():
     
     
   
-  
+   
     result2 = client.get_cost_and_usage(
     TimePeriod = {
         'Start': d3,
         'End': d
     },
     Granularity = 'DAILY',
-    Metrics = ["AmortizedCost"],
+    Metrics = [costMethod],
 
     )
     logger.info("============result2=============")
@@ -80,8 +83,8 @@ def send_CostUsage_Daily():
     total=0
     weeklycosts=[]
     for costdayitem in costarray:
-        thisWeekCost=costdayitem["Total"]["AmortizedCost"]["Amount"]
-        x =float(costdayitem["Total"]["AmortizedCost"]["Amount"])
+        thisWeekCost=costdayitem["Total"][costMethod]["Amount"]
+        x =float(costdayitem["Total"][costMethod]["Amount"])
         new_x=f'{x:.3f}'
         
         weeklycosts.append(float(new_x))
@@ -90,21 +93,28 @@ def send_CostUsage_Daily():
         
     
     average=total/len(weeklycosts)
-    average_str=f'{average:.3f}'
+    average_str=f'{average:.0f}'
         
     
-    StringCost="Yesterday  (USD) : "+str(yesterdayCost) +"\n"
+    # NewCostString="Yesterday\n"+str(yesterdayCost) +"USD"
+    NewCostString= str(yesterdayCost) +"USD"
+    
+    # StringCost="Yesterday  (USD) : "+str(yesterdayCost) +"\n"
     
     
-    StringCost=StringCost+" Average in seven days (USD) : "+average_str+"\n  Seven days (USD) : "+json.dumps(weeklycosts)
+    # StringCost=StringCost+" Average in seven days (USD) : "+average_str+"\n  Seven days (USD) : "+json.dumps(weeklycosts)
     # StringCost=json.dumps(costarray)
     
     
-    
+    # baseUrl="https://htcazurehtc.webhook.office.com/webhookb2/d2e982b3-e509-4760-b794-2b9c84a08369@afb5d3cf-2693-47e7-ade9-696a806ba95a/IncomingWebhook/53c1d12a4a12433497f9999090078e35/ff5f9314-b026-4cb9-8722-be00cd71cbcd"
     baseUrl="https://htcazurehtc.webhook.office.com/webhookb2/d2e982b3-e509-4760-b794-2b9c84a08369@afb5d3cf-2693-47e7-ade9-696a806ba95a/IncomingWebhook/2ee2102aa5e74e069a09c923e5790220/ff5f9314-b026-4cb9-8722-be00cd71cbcd"
     
+    # json_data={
+    #     'Text':"|Cost| "+ StringCost+' |Time| '+dateTimeStr_new
+    # }
     json_data={
-        'Text':"|Cost| "+ StringCost+' |Time| '+dateTimeStr_new
+        'title':"Yesterday",
+        'Text':NewCostString
     }
     req = requests.post(
     baseUrl,
