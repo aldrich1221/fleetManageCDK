@@ -25,7 +25,7 @@ import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as sns_subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import { MakeDirectoryOptions } from "fs";
-
+import { CodePipeline, CodePipelineSource, ShellStep } from 'aws-cdk-lib/pipelines'
 
 export interface PipelineStackProps extends StackProps {
   readonly ecr_repo: string;
@@ -94,7 +94,7 @@ export class CicdStack extends cdk.Stack {
      
   //   });
 
-
+  
   const jenkinsProvider = new codepipeline_actions.JenkinsProvider(this, 'JenkinsProvider', {
     providerName: 'MyJenkinsProvider',
     serverUrl: 'ip-172-31-20-13.ec2.internal:8080',
